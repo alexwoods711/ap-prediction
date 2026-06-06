@@ -1,5 +1,4 @@
-# Vendored from regression-sw/src/networks/timesnet.py @ 2d89767 on 2026-04-20 — DO NOT EDIT.
-# Re-sync: see src/_vendor/README.md.
+# Bundled engine module - do not edit by hand.
 """TimesNet models for time series with FFT-based period detection."""
 
 from typing import Optional, Tuple, Union

@@ -1,6 +1,5 @@
-# Vendored from regression-sw/src/networks/tcn.py @ 2d89767 on 2026-04-19 — DO NOT EDIT.
+# Bundled engine module - do not edit by hand.
 # Retained for its `TemporalBlock` symbol, imported by gnn.py.
-# Re-sync: see src/_vendor/README.md.
 """Temporal Convolutional Network (TCN) models for time series."""
 
 from typing import Optional, Tuple, Union

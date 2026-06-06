@@ -1,6 +1,5 @@
-# Vendored from setup-sw-db/core/parse.py @ de72933 on 2026-04-19 — DO NOT EDIT.
+# Bundled engine module - do not edit by hand.
 # Subset retained: _dt_hpo, HP30 spec, parse_hpo.
-# Re-sync: see src/_vendor/README.md.
 """Parser for the GFZ Potsdam Hp30/ap30 nowcast text file."""
 from datetime import datetime
 

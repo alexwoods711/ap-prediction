@@ -1,4 +1,4 @@
-# Vendored from regression-sw/src/networks/ @ 2d89767 on 2026-04-20 — DO NOT EDIT.
+# Bundled engine module - do not edit by hand.
 # Importing this package registers all 9 model factories with _registry:
 #   - Time-series only: linear, transformer, tcn, patchtst, timesnet
 #   - GNN variants: gnn (with gnn_temporal_type ∈ {transformer, tcn, bilstm, patch_transformer})

@@ -1,6 +1,5 @@
-# Vendored from setup-sw-db/core/download.py @ de72933 on 2026-04-19 — DO NOT EDIT.
+# Bundled engine module - do not edit by hand.
 # Subset retained: download, download_json.
-# Re-sync: see src/_vendor/README.md.
 """HTTP download utilities with retry."""
 import requests
 import urllib3

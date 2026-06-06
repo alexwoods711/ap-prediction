@@ -1,8 +1,8 @@
 """DB-free 30-minute aggregation of 1-minute solar wind data.
 
-Mirrors the resample + min/avg/max flattening logic of
-`setup-sw-db/core/aggregate.py::aggregate_sw_30min`, but consumes a DataFrame
-directly so the real-time pipeline can skip PostgreSQL.
+Resamples and flattens (min/avg/max) the 1-minute feed into the same 30-minute
+columns used at training time, consuming a DataFrame directly so the real-time
+pipeline can skip PostgreSQL.
 """
 
 from __future__ import annotations

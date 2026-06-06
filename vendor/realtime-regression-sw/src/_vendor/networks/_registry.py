@@ -1,5 +1,4 @@
-# Vendored from regression-sw/src/networks/_registry.py @ 2d89767 on 2026-04-19 — DO NOT EDIT.
-# Re-sync: see src/_vendor/README.md.
+# Bundled engine module - do not edit by hand.
 """Model registry with decorator-based registration."""
 
 from typing import Callable, Dict, List

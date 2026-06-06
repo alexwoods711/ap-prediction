@@ -1,6 +1,5 @@
-# Vendored from regression-sw/src/pipeline/normalizer.py @ 2d89767 on 2026-04-19 — DO NOT EDIT.
+# Bundled engine module - do not edit by hand.
 # Subset retained: Normalizer (OnlineStatistics dropped as unused at inference time).
-# Re-sync: see src/_vendor/README.md.
 """Normalization utilities for solar wind variables."""
 
 import logging

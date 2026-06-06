@@ -1,6 +1,5 @@
-# Vendored from regression-sw/src/utils.py @ 2d89767 on 2026-04-19 — DO NOT EDIT.
+# Bundled engine module - do not edit by hand.
 # Subset retained: setup_device, load_model (training/analysis helpers dropped).
-# Re-sync: see src/_vendor/README.md.
 """Device setup and checkpoint loading helpers."""
 
 import os

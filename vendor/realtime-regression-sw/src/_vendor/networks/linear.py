@@ -1,5 +1,4 @@
-# Vendored from regression-sw/src/networks/linear.py @ 2d89767 on 2026-04-20 — DO NOT EDIT.
-# Re-sync: see src/_vendor/README.md.
+# Bundled engine module - do not edit by hand.
 """Linear models for time series processing."""
 
 from typing import Optional, Tuple, Union

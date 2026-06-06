@@ -1,6 +1,5 @@
-# Vendored from regression-sw/src/networks/patchtst.py @ 2d89767 on 2026-04-19 — DO NOT EDIT.
+# Bundled engine module - do not edit by hand.
 # Retained for its `PatchEmbedding` symbol, imported by gnn.py.
-# Re-sync: see src/_vendor/README.md.
 """PatchTST models for patch-based time series processing."""
 
 from typing import Optional, Tuple, Union

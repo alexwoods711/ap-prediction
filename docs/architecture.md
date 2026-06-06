@@ -61,15 +61,6 @@ is committed in-tree.
           sites.njit.edu/ap-prediction/            (NJIT domain mapping)
 ```
 
-**Relationship to the development repo**
-
-This repo is a self-contained production mirror. Day-to-day development and
-validation of the engine and model happen in a separate development repository;
-once a version is stable it is promoted here by replacing the engine source and
-the committed checkpoint (see [§5](#5-model-assets)). The inlined engine under
-`vendor/realtime-regression-sw/` carries upstream-commit headers on its vendored
-files so its provenance stays traceable.
-
 ---
 
 ## 3. Data flow
@@ -168,7 +159,8 @@ Bx/By/Bz/Bt ×avg/min/max) + ap30.
 The input ordering and normalization schema are **safety-critical invariants**:
 the 22 variables must be supplied in the exact order the model was trained on,
 and the committed `table_stats.pkl` must be the same normalizer the weights were
-trained with (see [§5.1](#51-committed-in-tree)).
+trained with (see [docs/runtime-invariants.md](runtime-invariants.md) and
+[§5.1](#51-committed-in-tree)).
 
 ---
 

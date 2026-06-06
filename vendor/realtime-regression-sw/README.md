@@ -7,14 +7,13 @@ geomagnetic nowcast feeds.
 
 ## Overview
 
-This project is the on-demand inference companion of [regression-sw](../regression-sw)
-and [setup-sw-db](../setup-sw-db). It downloads live data from NOAA SWPC (solar
-wind) and GFZ Potsdam (Hp30/ap30 nowcast), preprocesses it into the same
-30-minute event format used for training, and runs the best-performing trained
-model to produce a 6-hour ap30 forecast.
+This is the on-demand inference engine. It downloads live data from NOAA SWPC
+(solar wind) and GFZ Potsdam (Hp30/ap30 nowcast), preprocesses it into the same
+30-minute event format used for training, and runs the trained model to produce
+a 12-hour ap30 forecast.
 
-- **Default model**: `in2d_out12h_gnn_transformer` (Val Loss 0.2727, Val MAE 0.3840)
-- **Input**: 2-day lookback (96 steps at 30-min cadence, 22 variables)
+- **Active model**: `in12h_out12h_gnn_patchtst` (GNN encoder + PatchTST temporal backbone)
+- **Input**: 12-hour lookback (24 steps at 30-min cadence, 22 variables)
 - **Output**: 24-step ap30 forecast (30 min → 12 hours ahead)
 - **Execution**: On-demand CLI (single-run). Run manually when a forecast is needed.
 
@@ -29,8 +28,9 @@ GFZ Hp30/ap30 nowcast  ─┘                               ├─► align ─�
                                                          ┘
 ```
 
-All vendored dependencies (downloader, normalizer, model code) live under
-`src/_vendor/`. The project has no runtime dependency on the sibling folders.
+All bundled internal modules (downloader, normalizer, model code) live under
+`src/_vendor/`. The engine has no runtime dependencies beyond the Python packages
+listed in `requirements.txt`.
 
 ---
 
@@ -98,8 +98,7 @@ window:
 | GFZ HPo nowcast  | https://www-app3.gfz-potsdam.de/kp_index/Hp30_ap30_nowcast.txt       | 30 min | Hp30, ap30 |
 
 NOAA provides only the past 7 days of data; the pipeline cannot backtest further
-into the past from this source. For historical backtests, use OMNI archive via
-`setup-sw-db` instead.
+into the past from this source.
 
 ---
 
