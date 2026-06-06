@@ -1,0 +1,127 @@
+# Extracted from regression-sw/configs/base.yaml @ 2d89767.
+# Only the keys needed at inference time are retained.
+
+experiment:
+  name: "in2d_out6h_gnn_transformer"
+  seed: 250104
+  batch_size: 1
+
+environment:
+  device: "cpu"
+  data_root: ""
+  save_root: ""
+  num_workers: 0
+
+data:
+  modalities:
+    timeseries: true
+    sdo: false
+    omni_hdf5: false
+
+  timeseries:
+    interval_minutes: 30
+    points_per_day: 48
+    days_before: 5
+    days_after: 3
+    dataset_mode: "csv"
+
+    input_start: null
+    input_end: null
+    target_start: null
+    target_end: null
+
+    input_variables:
+      - "v_avg"
+      - "v_min"
+      - "v_max"
+      - "np_avg"
+      - "np_min"
+      - "np_max"
+      - "t_avg"
+      - "t_min"
+      - "t_max"
+      - "bx_avg"
+      - "bx_min"
+      - "bx_max"
+      - "by_avg"
+      - "by_min"
+      - "by_max"
+      - "bz_avg"
+      - "bz_min"
+      - "bz_max"
+      - "bt_avg"
+      - "bt_min"
+      - "bt_max"
+      - "ap30"
+
+    gnn_variable_groups:
+      v: ["v_avg", "v_min", "v_max"]
+      np: ["np_avg", "np_min", "np_max"]
+      t: ["t_avg", "t_min", "t_max"]
+      bx: ["bx_avg", "bx_min", "bx_max"]
+      by: ["by_avg", "by_min", "by_max"]
+      bz: ["bz_avg", "bz_min", "bz_max"]
+      bt: ["bt_avg", "bt_min", "bt_max"]
+      ap30: ["ap30"]
+
+    target_variables:
+      - "ap30"
+
+    normalization:
+      default: "zscore"
+      methods:
+        v_avg: "log_zscore"
+        v_min: "log_zscore"
+        v_max: "log_zscore"
+        np_avg: "log_zscore"
+        np_min: "log_zscore"
+        np_max: "log_zscore"
+        t_avg: "log_zscore"
+        t_min: "log_zscore"
+        t_max: "log_zscore"
+        bx_avg: "zscore"
+        bx_min: "zscore"
+        bx_max: "zscore"
+        by_avg: "zscore"
+        by_min: "zscore"
+        by_max: "zscore"
+        bz_avg: "zscore"
+        bz_min: "zscore"
+        bz_max: "zscore"
+        bt_avg: "log_zscore"
+        bt_min: "log_zscore"
+        bt_max: "log_zscore"
+        ap30: "log1p_zscore"
+        hp30: "log1p_zscore"
+
+model:
+  model_type: "transformer"
+  d_model: 128
+
+  transformer_nhead: 4
+  transformer_num_layers: 2
+  transformer_dim_feedforward: 256
+  transformer_dropout: 0.1
+
+  tcn_channels:
+    - 64
+    - 128
+    - 256
+  tcn_kernel_size: 3
+  tcn_dropout: 0.1
+
+  gnn_temporal_type: "transformer"
+  gnn_node_feature_dim: 32
+  gnn_gcn_hidden_dim: 64
+  gnn_num_gcn_layers: 2
+  gnn_dropout: 0.1
+  gnn_node_embed_dim: 16
+
+  bilstm_hidden_size: 128
+  bilstm_num_layers: 2
+
+  patch_len: 16
+  patch_stride: 8
+  patchtst_dropout: 0.1
+
+  output_seq_len: null

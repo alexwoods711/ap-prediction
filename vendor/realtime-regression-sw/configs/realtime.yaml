@@ -1,0 +1,70 @@
+# DEFAULT runtime configuration (Windows target) — in2d_out12h_gnn_transformer profile.
+# Assumes the realtime workspace lives at D:/realtime/ with the standard layout
+# (checkpoint/, dataset/, results/ under the root).
+#
+# Usage (Windows, default):
+#   python scripts/run_realtime.py
+# Usage (macOS, variant):
+#   python scripts/run_realtime.py --config configs/realtime.mac.yaml
+#
+# Path notes:
+#   - Forward slashes ("D:/realtime/...") are valid on Windows and portable
+#     across pathlib.Path / os.path. Avoid backslashes so YAML escaping is
+#     unnecessary.
+#   - All downstream code uses pathlib.Path; no shell-specific paths.
+
+profile:
+  name: "in2d_out12h_gnn_transformer"
+  io: "in2d_out12h"          # 2-day input, 12-hour (24-step) output
+  model: "gnn_transformer"   # GNN with Transformer temporal backend
+
+experiment:
+  name: "in2d_out12h_gnn_transformer"
+
+paths:
+  checkpoint: "D:/realtime/checkpoint/model_best.pth"
+  stats_file: "D:/realtime/checkpoint/table_stats.pkl"
+  event_dir: "D:/realtime/dataset/events"
+  cache_dir: "D:/realtime/dataset/cache"
+  results_dir: "D:/realtime/results"
+
+sources:
+  noaa_plasma_url: "https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json"
+  noaa_mag_url:    "https://services.swpc.noaa.gov/products/solar-wind/mag-7-day.json"
+  gfz_hpo_url:     "https://www-app3.gfz-potsdam.de/kp_index/Hp30_ap30_nowcast.txt"
+  download_timeout: 30
+  max_retries: 3
+
+window:
+  lookback_steps: 96
+  forecast_steps: 24                      # 12 hours × 2 steps/hour
+  boundary_offset_minutes: 2
+
+runtime:
+  device: "cpu"
+  missing_data:
+    max_gap_fraction: 0.10
+    ffill_limit_steps: 2
+    require_recent_steps_present: 3
+    anchor_rollback_max_attempts: 2
+
+analysis:
+  plot:
+    enable: true
+    history_steps: 96
+    dpi: 120
+  mcd:
+    enable: true
+    num_samples: 100
+    n_std: 2.0
+  attention:
+    enable: true
+    save_npz: true
+
+# Reference metrics for the default checkpoint (reported at provenance time).
+# Values taken from in2d_out12h_gnn_transformer/log/training_history.json (epoch 8).
+model_provenance:
+  val_loss_at_train: 0.2727
+  val_mae_at_train: 0.3840
+  val_rmse_at_train: 0.4960
+  trained_on_epoch: 8

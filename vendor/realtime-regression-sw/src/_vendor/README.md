@@ -1,0 +1,37 @@
+# Vendored Code
+
+Files under this directory are **verbatim or near-verbatim copies** from the
+two sibling projects. They carry upstream identifiers so changes can be
+tracked and resynchronized.
+
+이 디렉터리의 파일은 자매 프로젝트에서 복사된 코드입니다. 재동기화를 위한
+upstream 식별자를 상단 헤더에 유지합니다.
+
+## Provenance
+
+| Vendored path | Upstream path | Commit |
+|---|---|---|
+| `download.py` | `setup-sw-db/core/download.py` (subset) | `de72933` |
+| `parse_hpo.py` | `setup-sw-db/core/parse.py` (HP30 subset) | `de72933` |
+| `normalizer.py` | `regression-sw/src/pipeline/normalizer.py` (Normalizer only) | `2d89767` |
+| `checkpoint.py` | `regression-sw/src/utils.py` (load_model, setup_device) | `2d89767` |
+| `networks/_registry.py` | `regression-sw/src/networks/_registry.py` | `2d89767` |
+| `networks/_base.py` | `regression-sw/src/networks/_base.py` | `2d89767` |
+| `networks/gnn.py` | `regression-sw/src/networks/gnn.py` | `2d89767` |
+| `networks/transformer.py` | `regression-sw/src/networks/transformer.py` | `2d89767` |
+| `networks/tcn.py` | `regression-sw/src/networks/tcn.py` (for gnn.py import) | `2d89767` |
+| `networks/patchtst.py` | `regression-sw/src/networks/patchtst.py` (for gnn.py import) | `2d89767` |
+
+## Resync Procedure
+
+1. Diff the upstream file against the vendored copy.
+2. Port non-trivial upstream changes over manually.
+3. Update the commit hash in the table above and in the per-file header.
+4. Re-run `pytest tests/` to confirm nothing broke.
+
+## DO NOT Edit Directly
+
+If you must adjust vendored code (e.g. to change an import path), keep the
+change minimal and note it in the per-file header as `# Local patch:`.
+Anything beyond a path tweak should instead live in the adapter modules that
+wrap the vendored symbols (`src/fetch/`, `src/inference/`, etc.).

@@ -1,0 +1,67 @@
+# CI runtime configuration — overrides realtime-regression-sw defaults for
+# GitHub Actions runners. Profile is pinned to in2d_out12h_gnn_transformer
+# (2-day lookback, 12-hour / 24-step ap30 forecast).
+#
+# Paths are relative to the vendor/realtime-regression-sw/ working directory.
+# In this self-contained repo the checkpoint (model_best.pth + table_stats.pkl)
+# is committed under ./checkpoint/, so the workflow does not download it.
+# The forecast.yml workflow:
+#   1) runs `run_realtime.py --config ../../configs/realtime.ci.yaml` from
+#      vendor/realtime-regression-sw/ (reads the committed ./checkpoint/)
+#   2) scripts/update_site_data.py copies results/predictions/* into site/data/.
+
+profile:
+  name: "in12h_out12h_gnn_patchtst"
+  io: "in12h_out12h"          # 12-hour input (24 steps), 12-hour output (24 steps)
+  model: "gnn_patchtst"       # GNN with PatchTST temporal backend
+
+experiment:
+  name: "in12h_out12h_gnn_patchtst"
+
+paths:
+  checkpoint: "./checkpoint/model_best.pth"
+  stats_file: "./checkpoint/table_stats.pkl"
+  event_dir: "./dataset/events"
+  cache_dir: "./dataset/cache"
+  results_dir: "./results"
+
+sources:
+  noaa_plasma_url: "https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json"
+  noaa_mag_url:    "https://services.swpc.noaa.gov/products/solar-wind/mag-7-day.json"
+  gfz_hpo_url:     "https://www-app3.gfz-potsdam.de/kp_index/Hp30_ap30_nowcast.txt"
+  download_timeout: 30
+  max_retries: 3
+
+window:
+  lookback_steps: 24          # 12 hours × 2 steps/hour
+  forecast_steps: 24          # 12 hours × 2 steps/hour
+  boundary_offset_minutes: 2
+
+runtime:
+  device: "cpu"
+  missing_data:
+    max_gap_fraction: 0.10
+    ffill_limit_steps: 2
+    require_recent_steps_present: 3
+    anchor_rollback_max_attempts: 2
+
+# MCD enabled so the site can render ±2σ uncertainty bands on the forecast.
+# Plot and attention artifacts are still skipped — the site only needs JSON.
+analysis:
+  plot:
+    enable: false
+    history_steps: 96
+    dpi: 120
+  mcd:
+    enable: true
+    num_samples: 100
+    n_std: 2.0
+  attention:
+    enable: false
+    save_npz: false
+
+model_provenance:
+  val_loss_at_train: 0.245454
+  val_mae_at_train: 0.3781     # ap30-specific MAE
+  val_rmse_at_train: 0.4956    # ap30-specific RMSE
+  trained_on_epoch: 9
