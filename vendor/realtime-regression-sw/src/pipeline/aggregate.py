@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 _SOURCE_COLS = ["v", "np", "t", "bx", "by", "bz", "bt"]
 
 # Pandas uses "mean"; training schema uses "avg". Training order is avg/min/max
-# for each physical variable (see regression-sw configs/base.yaml input_variables).
+# for each physical variable (see the training pipeline configs/base.yaml input_variables).
 _AGG_ORDER = [("mean", "avg"), ("min", "min"), ("max", "max")]
 
 

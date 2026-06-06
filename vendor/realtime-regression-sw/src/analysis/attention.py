@@ -1,7 +1,7 @@
 """Attention + GNN adjacency extraction for the `gnn_transformer` model.
 
 Replicates the manual forward pass in
-`regression-sw/analysis/attention_analysis.py::_extract_gnn_attention` so that
+`the training code` so that
 the Transformer self-attention weights can be captured with
 `need_weights=True, average_attn_weights=False`. The GNN adjacency matrix is
 read directly from the `.adjacency_matrix` property already exposed by the

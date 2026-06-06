@@ -1,5 +1,5 @@
 # macOS / Linux variant — in2d_out12h_gnn_transformer profile.
-# Workspace: /Users/eunsupark/realtime/ with the standard layout
+# Workspace: ~/realtime/ with the standard layout
 # (checkpoint/, dataset/, results/ under the root).
 #
 # Usage:
@@ -14,11 +14,11 @@ experiment:
   name: "in2d_out12h_gnn_transformer"
 
 paths:
-  checkpoint: "/Users/eunsupark/realtime/checkpoint/model_best.pth"
-  stats_file: "/Users/eunsupark/realtime/checkpoint/table_stats.pkl"
-  event_dir: "/Users/eunsupark/realtime/dataset/events"
-  cache_dir: "/Users/eunsupark/realtime/dataset/cache"
-  results_dir: "/Users/eunsupark/realtime/results"
+  checkpoint: "~/realtime/checkpoint/model_best.pth"
+  stats_file: "~/realtime/checkpoint/table_stats.pkl"
+  event_dir: "~/realtime/dataset/events"
+  cache_dir: "~/realtime/dataset/cache"
+  results_dir: "~/realtime/results"
 
 sources:
   noaa_plasma_url: "https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json"

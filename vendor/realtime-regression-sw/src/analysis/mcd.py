@@ -1,6 +1,6 @@
 """Monte Carlo Dropout inference for uncertainty estimation.
 
-Follows the `regression-sw/analysis/run_mcd.py` approach: keep the model in eval
+Follows the `the training code` approach: keep the model in eval
 mode but manually switch every `nn.Dropout` module back to train mode so stochastic
 forward passes produce different samples.
 """
