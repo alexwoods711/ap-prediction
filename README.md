@@ -1,15 +1,14 @@
 # ap-prediction
 
 Public dashboard for 12-hour ap30 geomagnetic index forecasts.
-공개 대시보드: 12시간 ap30 지자기 지수 예측.
 
 - Deployed site: https://sites.njit.edu/ap-prediction/
   (also at https://njit-research.github.io/ap-prediction/)
 - Forecast model: [njit-research/ap-prediction](https://github.com/njit-research/ap-prediction)
 - Update cadence: every 30 min (cron `8,38 * * * *`)
-- Architecture details / 상세 설계: [docs/architecture.md](docs/architecture.md)
+- Architecture details: [docs/architecture.md](docs/architecture.md)
 
-## How it works (동작 원리)
+## How it works
 
 1. `.github/workflows/forecast.yml` runs on a 30-min cron.
 2. It checks out this repo (with `realtime-regression-sw` pinned as a submodule),
@@ -22,7 +21,7 @@ Public dashboard for 12-hour ap30 geomagnetic index forecasts.
 5. `site/index.html` fetches `data/latest.json` on load and renders a Chart.js
    line plot of the 24-step (12-hour) ap30 forecast.
 
-## Repository layout (저장소 구조)
+## Repository layout
 
 ```
 ap-prediction/
@@ -39,7 +38,7 @@ ap-prediction/
 └── README.md
 ```
 
-## One-time setup (최초 설정)
+## One-time setup
 
 ### 1. Upload runtime assets to the inference repo
 
