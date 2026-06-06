@@ -4,16 +4,15 @@ Public dashboard for 12-hour ap30 geomagnetic index forecasts.
 
 - Deployed site: https://sites.njit.edu/ap-prediction/
   (also at https://njit-research.github.io/ap-prediction/)
-- Forecast model: [njit-research/ap-prediction](https://github.com/njit-research/ap-prediction)
+- Inference engine + model weights: bundled in-tree under `vendor/realtime-regression-sw/`
 - Update cadence: every 30 min (cron `8,38 * * * *`)
 - Architecture details: [docs/architecture.md](docs/architecture.md)
 
 ## How it works
 
 1. `.github/workflows/forecast.yml` runs on a 30-min cron.
-2. It checks out this repo (with `realtime-regression-sw` pinned as a submodule),
-   downloads the model checkpoint + normalization stats from the
-   `realtime-regression-sw` GitHub Release, and runs
+2. It checks out this repo — the inference engine and the model checkpoint
+   (`model_best.pth` + `table_stats.pkl`) are committed in-tree — and runs
    `scripts/run_realtime.py`.
 3. `scripts/update_site_data.py` copies the newest forecast JSON into
    `site/data/latest.json` and refreshes `site/data/status.json`.
@@ -26,7 +25,7 @@ Public dashboard for 12-hour ap30 geomagnetic index forecasts.
 ```
 ap-prediction/
 ├── .github/workflows/forecast.yml   cron-triggered pipeline
-├── vendor/realtime-regression-sw/   git submodule, inference code
+├── vendor/realtime-regression-sw/   inlined inference engine + committed checkpoint
 ├── configs/realtime.ci.yaml         CI path overrides
 ├── scripts/update_site_data.py      post-process inference output
 ├── site/
@@ -40,37 +39,30 @@ ap-prediction/
 
 ## One-time setup
 
-### 1. Upload runtime assets to the inference repo
-
-The workflow downloads `model_best.pth` and `table_stats.pkl` from a GitHub
-Release on `njit-research/ap-prediction`. Create the release once:
-
-1. Open https://github.com/njit-research/ap-prediction/releases/new
-2. Tag: `v0.1.0-assets` (new)
-3. Target: `main`
-4. Title: `v0.1.0 runtime assets`
-5. Attach both files:
-   - `model_best.pth` (~4.5 MB)
-   - `table_stats.pkl` (<100 KB)
-6. Publish.
-
-Matched-pair invariant: the two files must come from the same training run.
-When the model is retrained, create a new release (e.g. `v0.2.0-assets`) with
-both files and update `env.ASSETS_TAG` in `forecast.yml`.
-
-### 2. Enable GitHub Pages
+### 1. Enable GitHub Pages
 
 Settings → Pages → Build and deployment → Source: **GitHub Actions**.
 
-### 3. (Optional) Sync the submodule to a stable tag
+That is the only setup step: the inference engine and the model checkpoint
+(`model_best.pth` + `table_stats.pkl`, ~7.2 MB) are committed in-tree, so the
+workflow runs from a plain checkout with no asset download.
+
+### 2. Updating the model
+
+Replace the matched checkpoint pair under
+`vendor/realtime-regression-sw/checkpoint/` and commit:
 
 ```
-cd vendor/realtime-regression-sw
-git checkout <tag-or-sha>
-cd ../..
-git add vendor/realtime-regression-sw
-git commit -m "Pin realtime-regression-sw to <tag-or-sha>"
+cp <new>/model_best.pth  vendor/realtime-regression-sw/checkpoint/
+cp <new>/table_stats.pkl vendor/realtime-regression-sw/checkpoint/
+git add vendor/realtime-regression-sw/checkpoint/model_best.pth \
+        vendor/realtime-regression-sw/checkpoint/table_stats.pkl
+git commit -m "Update checkpoint to <training-run-id>"
 ```
+
+Matched-pair invariant: the two files must come from the same training run.
+See [docs/architecture.md](docs/architecture.md) §5 for details and for handling
+engine-source / config changes alongside the weights.
 
 ## Trigger a run manually
 
