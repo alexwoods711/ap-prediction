@@ -165,9 +165,10 @@ PatchTST temporal backbone, a 12-hour input window, and a 12-hour forecast.
 22 input variables: 21 solar-wind parameters (v/np/t ×avg/min/max,
 Bx/By/Bz/Bt ×avg/min/max) + ap30.
 
-The input ordering and normalization schema are **safety-critical invariants**;
-see
-[docs/realtime-regression-sw/runtime-invariants.md](https://github.com/njit-research/ap-prediction/blob/main/docs/realtime-regression-sw/runtime-invariants.md).
+The input ordering and normalization schema are **safety-critical invariants**:
+the 22 variables must be supplied in the exact order the model was trained on,
+and the committed `table_stats.pkl` must be the same normalizer the weights were
+trained with (see [§5.1](#51-committed-in-tree)).
 
 ---
 
@@ -256,8 +257,7 @@ showing the last successful forecast with the warning banner on top.
 the workflow runs from a plain checkout with no download step and no external
 dependency. The two files **must be a matched pair from the same training run** —
 mismatched files cause silently miscalibrated forecasts, and there is no runtime
-check that enforces the pairing (see
-[runtime-invariants.md §3](https://github.com/njit-research/ap-prediction/blob/main/docs/realtime-regression-sw/runtime-invariants.md#normalization-coupling)).
+check that enforces the pairing.
 
 The committed checkpoint is force-tracked despite the engine's `*.pth`/`*.pkl`
 ignore rules; a `.gitignore` inside `checkpoint/` re-includes the two files.
