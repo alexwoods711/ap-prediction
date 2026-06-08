@@ -366,7 +366,7 @@ agnostic to which of these hosts it is served from.
 | [`site/main.js`](../site/main.js) | Fetches `latest.json` + `status.json` + `forecast_history.json`; paints banner; renders red observed history, green past-forecast (+30 min) line, blue forecast with shaded MCD band, and a dashed "now" divider; UTC-formatted x-axis ticks; tooltips in UTC / KST |
 | [`site/data/latest.json`](../site/data/latest.json) | Most recent forecast payload (auto-committed by the workflow) |
 | [`site/data/status.json`](../site/data/status.json) | Pipeline health (auto-committed by the workflow) |
-| [`site/data/forecast_history.json`](../site/data/forecast_history.json) | Rolling first-horizon (+30 min) past-forecast archive that feeds the green plot line (auto-committed) |
+| [`site/data/forecast_history.json`](../site/data/forecast_history.json) | Rolling first-horizon (+30 min) past-forecast archive (ap30 + MCD `lower`/`upper`) that feeds the green plot line and its shaded interval band (auto-committed) |
 | [`site/data/forecast_history.csv`](../site/data/forecast_history.csv) | Rolling 30-day wide ap30 forecast archive (`m_30 … m_720`), offered as a CSV download (auto-committed) |
 | [`vendor/realtime-regression-sw/`](../vendor/realtime-regression-sw) | Inlined inference engine (fetch / pipeline / inference / output) + committed checkpoint |
 

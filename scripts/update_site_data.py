@@ -139,9 +139,10 @@ def _update_forecast_history(data: dict) -> None:
 
     Maintains `site/data/forecast_history.json` as a continuous 30-min grid over
     the last `PLOT_HISTORY_HOURS`, where each slot holds the first-horizon ap30
-    the model predicted for that target time. Slots without a recorded forecast
-    are 0-filled; on reload a stored 0 is treated as empty (the regression model
-    practically never emits exactly 0.0).
+    the model predicted for that target time together with its MCD prediction
+    interval (`lower`/`upper`). Slots without a recorded forecast are 0-filled; on
+    reload a stored 0 is treated as empty (the regression model practically never
+    emits exactly 0.0).
 
     Args:
         data: The forecast JSON payload (already loaded from the latest run).
@@ -155,23 +156,44 @@ def _update_forecast_history(data: dict) -> None:
     except (KeyError, ValueError):
         return
 
-    known: dict[str, float] = {}
+    # First-horizon MCD prediction interval, if the run produced one.
+    mcd = (data.get("analysis") or {}).get("mcd") or {}
+
+    def _bound(key: str):
+        arr = mcd.get(key) or []
+        return round(float(arr[0]), AP_DECIMALS) if arr else None
+
+    known: dict[str, dict] = {}
     if FORECAST_HISTORY_JSON.exists():
         try:
             for entry in json.loads(FORECAST_HISTORY_JSON.read_text(encoding="utf-8")):
                 value = float(entry.get("ap30", 0) or 0)
                 if value:
-                    known[entry["target_timestamp_utc"]] = value
+                    known[entry["target_timestamp_utc"]] = {
+                        "ap30": value,
+                        "lower": entry.get("lower"),
+                        "upper": entry.get("upper"),
+                    }
         except (ValueError, KeyError):
             pass
-    known[_fmt_iso(target)] = round(float(first["ap30"]), AP_DECIMALS)
+    known[_fmt_iso(target)] = {
+        "ap30": round(float(first["ap30"]), AP_DECIMALS),
+        "lower": _bound("lower"),
+        "upper": _bound("upper"),
+    }
 
     step = timedelta(minutes=STEP_MINUTES)
     cursor = target - timedelta(hours=PLOT_HISTORY_HOURS)
     grid: list[dict] = []
     while cursor <= target:
         iso = _fmt_iso(cursor)
-        grid.append({"target_timestamp_utc": iso, "ap30": known.get(iso, 0)})
+        rec = known.get(iso)
+        if rec:
+            grid.append({"target_timestamp_utc": iso, "ap30": rec["ap30"],
+                         "lower": rec["lower"], "upper": rec["upper"]})
+        else:
+            grid.append({"target_timestamp_utc": iso, "ap30": 0,
+                         "lower": 0, "upper": 0})
         cursor += step
 
     FORECAST_HISTORY_JSON.write_text(

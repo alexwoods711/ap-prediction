@@ -112,14 +112,30 @@
   }));
 
   // Past forecasts: the first-horizon (+30 min) value the model issued at each
-  // past step, drawn over the same window as the observed history so the two can
-  // be compared. Archive 0-fills unproduced slots; render those as gaps.
+  // past step (with its MCD interval), drawn over the same window as the observed
+  // history so the two can be compared. Archive 0-fills unproduced slots; render
+  // those as gaps.
   const anchorMs = new Date(latest.anchor_timestamp_utc).getTime();
   const historyStartMs = historyPoints.length ? historyPoints[0].x.getTime() : -Infinity;
-  const pastForecastPoints = (forecastHistory ?? [])
-    .map((e) => ({ x: new Date(e.target_timestamp_utc), y: e.ap30 }))
-    .filter((p) => p.x.getTime() >= historyStartMs && p.x.getTime() <= anchorMs)
-    .map((p) => ({ x: p.x, y: p.y === 0 ? null : p.y }));
+  const pastEntries = (forecastHistory ?? []).filter((e) => {
+    const t = new Date(e.target_timestamp_utc).getTime();
+    return t >= historyStartMs && t <= anchorMs;
+  });
+  const pastForecastPoints = pastEntries.map((e) => ({
+    x: new Date(e.target_timestamp_utc),
+    y: e.ap30 === 0 ? null : e.ap30,
+  }));
+  // Per-point MCD interval for the past forecasts (absent on older archive
+  // entries → rendered as a gap in the band).
+  const hasPastBound = (e) => e.ap30 !== 0 && e.lower != null && e.upper != null;
+  const pastLowerPoints = pastEntries.map((e) => ({
+    x: new Date(e.target_timestamp_utc),
+    y: hasPastBound(e) ? e.lower : null,
+  }));
+  const pastUpperPoints = pastEntries.map((e) => ({
+    x: new Date(e.target_timestamp_utc),
+    y: hasPastBound(e) ? e.upper : null,
+  }));
 
   // MCD uncertainty band. The realtime pipeline writes parallel arrays under
   // analysis.mcd aligned to forecast horizon index; absent on older payloads.
@@ -145,7 +161,8 @@
 
   // Vertical "now" divider at the anchor (REFM-style past/future separator),
   // drawn as a 2-point dataset spanning the y-range so no plugin is needed.
-  const yValues = [...historyPoints, ...forecastPoints, ...uncertaintyUpper, ...pastForecastPoints]
+  const yValues = [...historyPoints, ...forecastPoints, ...uncertaintyUpper,
+                   ...pastForecastPoints, ...pastUpperPoints]
     .map((p) => p.y)
     .filter((v) => v != null);
   const yMax = yValues.length ? Math.max(...yValues) * 1.1 : 10;
@@ -167,6 +184,25 @@
           backgroundColor: "#dc2626",
           borderWidth: 1.5,
           pointRadius: 0,
+          tension: 0.15,
+        },
+        {
+          label: "past uncertainty lower",
+          data: pastLowerPoints,
+          borderColor: "rgba(22, 163, 74, 0)",
+          pointRadius: 0,
+          fill: false,
+          spanGaps: false,
+          tension: 0.15,
+        },
+        {
+          label: "past uncertainty",
+          data: pastUpperPoints,
+          borderColor: "rgba(22, 163, 74, 0)",
+          backgroundColor: "rgba(22, 163, 74, 0.15)",
+          pointRadius: 0,
+          fill: "-1",
+          spanGaps: false,
           tension: 0.15,
         },
         {
@@ -240,7 +276,8 @@
           position: "bottom",
           labels: {
             filter: (item) =>
-              item.text !== "bridge" && item.text !== "uncertainty lower" && item.text !== "now",
+              item.text !== "bridge" && item.text !== "uncertainty lower" && item.text !== "now" &&
+              item.text !== "past uncertainty lower" && item.text !== "past uncertainty",
             // Display legend in this fixed order regardless of dataset
             // array order (which is constrained by draw order + fill refs).
             sort: (a, b) => {
@@ -258,7 +295,9 @@
           filter: (item) =>
             item.dataset.label !== "bridge" &&
             item.dataset.label !== "uncertainty lower" &&
-            item.dataset.label !== "now",
+            item.dataset.label !== "now" &&
+            item.dataset.label !== "past uncertainty lower" &&
+            item.dataset.label !== "past uncertainty",
           callbacks: {
             title: (items) => {
               const d = items[0].parsed.x;
