@@ -5,6 +5,7 @@
 (async () => {
   const LATEST_URL = "./data/latest.json";
   const STATUS_URL = "./data/status.json";
+  const FORECAST_HISTORY_URL = "./data/forecast_history.json";
   const STALE_MS = 2 * 60 * 60 * 1000;  // 2 hours
 
   const $ = (id) => document.getElementById(id);
@@ -66,6 +67,15 @@
     return;
   }
 
+  // Past-forecast archive (optional; absent on older deploys). Each entry is the
+  // first-horizon (+30 min) ap30 the model issued for that target time.
+  let forecastHistory = [];
+  try {
+    forecastHistory = await fetchJSON(FORECAST_HISTORY_URL);
+  } catch {
+    forecastHistory = [];
+  }
+
   // Read input fill fraction for banner logic (metadata panel removed from UI).
   const filled = latest.input?.missing_data_filled_fraction;
   $("last-fetched").textContent = fmtDual(new Date().toISOString());
@@ -101,6 +111,16 @@
     y: e.ap30,
   }));
 
+  // Past forecasts: the first-horizon (+30 min) value the model issued at each
+  // past step, drawn over the same window as the observed history so the two can
+  // be compared. Archive 0-fills unproduced slots; render those as gaps.
+  const anchorMs = new Date(latest.anchor_timestamp_utc).getTime();
+  const historyStartMs = historyPoints.length ? historyPoints[0].x.getTime() : -Infinity;
+  const pastForecastPoints = (forecastHistory ?? [])
+    .map((e) => ({ x: new Date(e.target_timestamp_utc), y: e.ap30 }))
+    .filter((p) => p.x.getTime() >= historyStartMs && p.x.getTime() <= anchorMs)
+    .map((p) => ({ x: p.x, y: p.y === 0 ? null : p.y }));
+
   // MCD uncertainty band. The realtime pipeline writes parallel arrays under
   // analysis.mcd aligned to forecast horizon index; absent on older payloads.
   const mcd = latest.analysis?.mcd;
@@ -123,6 +143,17 @@
     ? [historyPoints[historyPoints.length - 1], forecastPoints[0]]
     : [];
 
+  // Vertical "now" divider at the anchor (REFM-style past/future separator),
+  // drawn as a 2-point dataset spanning the y-range so no plugin is needed.
+  const yValues = [...historyPoints, ...forecastPoints, ...uncertaintyUpper, ...pastForecastPoints]
+    .map((p) => p.y)
+    .filter((v) => v != null);
+  const yMax = yValues.length ? Math.max(...yValues) * 1.1 : 10;
+  const nowDivider = [
+    { x: new Date(latest.anchor_timestamp_utc), y: 0 },
+    { x: new Date(latest.anchor_timestamp_utc), y: yMax },
+  ];
+
   const ctx = $("forecast-chart").getContext("2d");
   // eslint-disable-next-line no-undef
   new Chart(ctx, {
@@ -130,12 +161,23 @@
     data: {
       datasets: [
         {
-          label: "observed ap30 (history)",
+          label: "observed ap30",
           data: historyPoints,
           borderColor: "#dc2626",
           backgroundColor: "#dc2626",
           borderWidth: 1.5,
           pointRadius: 0,
+          tension: 0.15,
+        },
+        {
+          label: "past forecast",
+          data: pastForecastPoints,
+          borderColor: "#16a34a",
+          backgroundColor: "#16a34a",
+          borderWidth: 1.5,
+          borderDash: [4, 3],
+          pointRadius: 2,
+          spanGaps: false,
           tension: 0.15,
         },
         {
@@ -156,7 +198,7 @@
           tension: 0.15,
         },
         {
-          label: "predicted ap30 (future)",
+          label: "predicted ap30",
           data: forecastPoints,
           borderColor: "#2563eb",
           backgroundColor: "#2563eb",
@@ -175,6 +217,17 @@
           fill: false,
           tension: 0,
         },
+        {
+          label: "now",
+          data: nowDivider,
+          borderColor: "#9ca3af",
+          borderWidth: 1,
+          borderDash: [2, 2],
+          pointRadius: 0,
+          showLine: true,
+          fill: false,
+          tension: 0,
+        },
       ],
     },
     options: {
@@ -187,13 +240,14 @@
           position: "bottom",
           labels: {
             filter: (item) =>
-              item.text !== "bridge" && item.text !== "uncertainty lower",
+              item.text !== "bridge" && item.text !== "uncertainty lower" && item.text !== "now",
             // Display legend in this fixed order regardless of dataset
             // array order (which is constrained by draw order + fill refs).
             sort: (a, b) => {
               const order = [
-                "observed ap30 (history)",
-                "predicted ap30 (future)",
+                "observed ap30",
+                "past forecast",
+                "predicted ap30",
                 "uncertainty",
               ];
               return order.indexOf(a.text) - order.indexOf(b.text);
@@ -203,7 +257,8 @@
         tooltip: {
           filter: (item) =>
             item.dataset.label !== "bridge" &&
-            item.dataset.label !== "uncertainty lower",
+            item.dataset.label !== "uncertainty lower" &&
+            item.dataset.label !== "now",
           callbacks: {
             title: (items) => {
               const d = items[0].parsed.x;

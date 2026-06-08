@@ -110,13 +110,13 @@ Every 30 minutes, one full cycle from upstream feed to browser happens:
                 ┌─────────────────────────────────────────────────────┐
                 │ Browser — site/main.js                              │
                 │                                                     │
-                │  1. fetch("./data/latest.json", {cache:"no-store"}) │
-                │  2. fetch("./data/status.json", {cache:"no-store"}) │
-                │  3. Populate metadata block (UTC / KST)             │
-                │  4. Paint status banner based on status.json        │
-                │  5. Render Chart.js: gray history + blue forecast   │
-                │     + shaded MCD uncertainty band                   │
-                │  6. x-axis tick labels formatted in UTC             │
+                │  1. fetch latest.json + status.json (no-store)      │
+                │  2. fetch forecast_history.json (past forecasts)    │
+                │  3. Populate metadata; paint status banner          │
+                │  4. Render Chart.js: red observed history,          │
+                │     green past forecast, blue forecast,             │
+                │     MCD band, dashed "now" divider                  │
+                │  5. x-axis tick labels formatted in UTC             │
                 └─────────────────────────────────────────────────────┘
 ```
 
@@ -361,11 +361,13 @@ agnostic to which of these hosts it is served from.
 |------|---------|
 | [`.github/workflows/forecast.yml`](../.github/workflows/forecast.yml) | Cron-triggered build+deploy pipeline |
 | [`configs/realtime.ci.yaml`](../configs/realtime.ci.yaml) | Active profile + path overrides (checkpoint, stats, event_dir, results_dir relative to the engine root) |
-| [`scripts/update_site_data.py`](../scripts/update_site_data.py) | Post-process: read latest forecast JSON, embed recent observed ap30 history from the event CSV, write `site/data/latest.json` + `status.json` |
-| [`site/index.html`](../site/index.html) | Static page shell. Inline CSS. Loads Chart.js v4 + date-fns adapter from jsDelivr CDN |
-| [`site/main.js`](../site/main.js) | Fetches `latest.json` + `status.json`, fills metadata, paints banner, renders history + forecast with a shaded MCD uncertainty band, UTC-formatted x-axis ticks, tooltips showing both UTC and KST |
+| [`scripts/update_site_data.py`](../scripts/update_site_data.py) | Post-process: read latest forecast JSON, embed recent observed ap30 history, write `site/data/latest.json` + `status.json`, and append to the past-forecast archives (`forecast_history.json` / `.csv`) |
+| [`site/index.html`](../site/index.html) | Static page shell. Inline CSS. Loads Chart.js v4 + date-fns adapter from jsDelivr CDN. Links the `forecast_history.csv` download |
+| [`site/main.js`](../site/main.js) | Fetches `latest.json` + `status.json` + `forecast_history.json`; paints banner; renders red observed history, green past-forecast (+30 min) line, blue forecast with shaded MCD band, and a dashed "now" divider; UTC-formatted x-axis ticks; tooltips in UTC / KST |
 | [`site/data/latest.json`](../site/data/latest.json) | Most recent forecast payload (auto-committed by the workflow) |
 | [`site/data/status.json`](../site/data/status.json) | Pipeline health (auto-committed by the workflow) |
+| [`site/data/forecast_history.json`](../site/data/forecast_history.json) | Rolling first-horizon (+30 min) past-forecast archive that feeds the green plot line (auto-committed) |
+| [`site/data/forecast_history.csv`](../site/data/forecast_history.csv) | Rolling 30-day wide ap30 forecast archive (`m_30 … m_720`), offered as a CSV download (auto-committed) |
 | [`vendor/realtime-regression-sw/`](../vendor/realtime-regression-sw) | Inlined inference engine (fetch / pipeline / inference / output) + committed checkpoint |
 
 ### 7.1 `latest.json` schema

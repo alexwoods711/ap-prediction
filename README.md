@@ -5,20 +5,24 @@ Public dashboard for 12-hour ap30 geomagnetic index forecasts.
 - Deployed site: https://sites.njit.edu/ap-prediction/
   (also at https://njit-research.github.io/ap-prediction/)
 - Inference engine + model weights: bundled in-tree under `vendor/realtime-regression-sw/`
-- Update cadence: every 30 min (cron `8,38 * * * *`)
+- Forecast every 30 min, produced every 15 min (cron `8,23,38,53 * * * *`,
+  two attempts per anchor as a backup against transient upstream outages)
 - Architecture details: [docs/architecture.md](docs/architecture.md)
 
 ## How it works
 
-1. `.github/workflows/forecast.yml` runs on a 30-min cron.
+1. `.github/workflows/forecast.yml` runs every 15 min.
 2. It checks out this repo — the inference engine and the model checkpoint
    (`model_best.pth` + `table_stats.pkl`) are committed in-tree — and runs
-   `scripts/run_realtime.py`.
+   `scripts/run_realtime.py`. If an upstream feed is unreachable the run exits
+   with a "data gap" warning (exit 2) instead of failing hard.
 3. `scripts/update_site_data.py` copies the newest forecast JSON into
-   `site/data/latest.json` and refreshes `site/data/status.json`.
+   `site/data/latest.json`, refreshes `site/data/status.json`, and appends to
+   the past-forecast archives (`forecast_history.json` / `.csv`).
 4. The `site/` directory is published as a GitHub Pages artifact.
-5. `site/index.html` fetches `data/latest.json` on load and renders a Chart.js
-   line plot of the 24-step (12-hour) ap30 forecast.
+5. `site/index.html` fetches `data/latest.json` (+ `forecast_history.json`) and
+   renders a Chart.js plot of the 12-hour forecast, the observed history, and the
+   green past-forecast line, with a `forecast_history.csv` download link.
 
 ## Repository layout
 

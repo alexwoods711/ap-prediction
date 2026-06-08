@@ -1,8 +1,8 @@
 """DB-free 30-minute aggregation of 1-minute solar wind data.
 
-Resamples and flattens (min/avg/max) the 1-minute feed into the same 30-minute
-columns used at training time, consuming a DataFrame directly so the real-time
-pipeline can skip PostgreSQL.
+Mirrors the resample + min/avg/max flattening logic of
+`the training code`, but consumes a DataFrame
+directly so the real-time pipeline can skip PostgreSQL.
 """
 
 from __future__ import annotations

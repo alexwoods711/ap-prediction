@@ -12,9 +12,10 @@ a warning banner.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -23,6 +24,18 @@ RESULTS_DIR = REPO_ROOT / "vendor" / "realtime-regression-sw" / "results"
 EVENTS_DIR = REPO_ROOT / "vendor" / "realtime-regression-sw" / "dataset" / "events"
 SITE_DATA_DIR = REPO_ROOT / "site" / "data"
 HISTORY_STEPS = 96  # 48 hours at 30-min cadence, matches the input window
+
+# Past-forecast archives written alongside latest.json so the page can plot
+# previously issued forecasts against observations (REFM-style) and offer a
+# monthly CSV download.
+FORECAST_HISTORY_JSON = SITE_DATA_DIR / "forecast_history.json"
+FORECAST_HISTORY_CSV = SITE_DATA_DIR / "forecast_history.csv"
+PLOT_HISTORY_HOURS = 48     # rolling window kept in the plot archive (JSON)
+CSV_HISTORY_DAYS = 30       # rolling window kept in the monthly archive (CSV)
+STEP_MINUTES = 30           # forecast cadence
+# ap30 is a discrete index (scale min gap = 1); one decimal place recovers the
+# nearest level and stays well below model error, while keeping the CSV compact.
+AP_DECIMALS = 1
 
 
 def _iso_now() -> str:
@@ -103,6 +116,131 @@ def _error_label(exit_code: int) -> tuple[str, str]:
     return "error", f"Inference exited with code {exit_code}."
 
 
+def _parse_iso(value: str) -> datetime:
+    """Parse a `YYYY-MM-DDTHH:MM:SSZ` timestamp into an aware UTC datetime."""
+    return datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+
+def _fmt_iso(dt: datetime) -> str:
+    """Format an aware datetime as `YYYY-MM-DDTHH:MM:SSZ`."""
+    return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _safe_float(value) -> float:
+    """Parse a value to float, returning 0.0 on missing/invalid input."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _update_forecast_history(data: dict) -> None:
+    """Append the run's first-frame (+30 min) forecast to the plot archive.
+
+    Maintains `site/data/forecast_history.json` as a continuous 30-min grid over
+    the last `PLOT_HISTORY_HOURS`, where each slot holds the first-horizon ap30
+    the model predicted for that target time. Slots without a recorded forecast
+    are 0-filled; on reload a stored 0 is treated as empty (the regression model
+    practically never emits exactly 0.0).
+
+    Args:
+        data: The forecast JSON payload (already loaded from the latest run).
+    """
+    forecast = data.get("forecast") or []
+    if not forecast:
+        return
+    first = forecast[0]
+    try:
+        target = _parse_iso(first["target_timestamp_utc"])
+    except (KeyError, ValueError):
+        return
+
+    known: dict[str, float] = {}
+    if FORECAST_HISTORY_JSON.exists():
+        try:
+            for entry in json.loads(FORECAST_HISTORY_JSON.read_text(encoding="utf-8")):
+                value = float(entry.get("ap30", 0) or 0)
+                if value:
+                    known[entry["target_timestamp_utc"]] = value
+        except (ValueError, KeyError):
+            pass
+    known[_fmt_iso(target)] = round(float(first["ap30"]), AP_DECIMALS)
+
+    step = timedelta(minutes=STEP_MINUTES)
+    cursor = target - timedelta(hours=PLOT_HISTORY_HOURS)
+    grid: list[dict] = []
+    while cursor <= target:
+        iso = _fmt_iso(cursor)
+        grid.append({"target_timestamp_utc": iso, "ap30": known.get(iso, 0)})
+        cursor += step
+
+    FORECAST_HISTORY_JSON.write_text(
+        json.dumps(grid, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+
+def _update_forecast_csv(data: dict) -> None:
+    """Append the run's forecast to the monthly wide-format CSV archive.
+
+    Maintains `site/data/forecast_history.csv` as a rolling `CSV_HISTORY_DAYS`
+    grid with one row per anchor and one ap30 column per horizon
+    (`m_30 … m_720`, the lead time in minutes). Anchors not yet produced are
+    0-filled and replaced by real values as forecasts run. Only ap30 is stored;
+    each target time is recoverable from the anchor plus the column lead time.
+
+    Args:
+        data: The forecast JSON payload (already loaded from the latest run).
+    """
+    forecast = data.get("forecast") or []
+    if not forecast:
+        return
+    try:
+        anchor = _parse_iso(data["anchor_timestamp_utc"])
+    except (KeyError, ValueError):
+        return
+    horizons = len(forecast)
+    lead_cols = [f"m_{h * STEP_MINUTES}" for h in range(1, horizons + 1)]
+    columns = ["anchor_timestamp_utc", *lead_cols]
+
+    # Load existing rows into {anchor_iso: [ap30 per horizon]}; drop all-zero rows.
+    known: dict[str, list[float]] = {}
+    if FORECAST_HISTORY_CSV.exists():
+        try:
+            with FORECAST_HISTORY_CSV.open("r", encoding="utf-8", newline="") as fp:
+                for row in csv.DictReader(fp):
+                    values = [_safe_float(row.get(c)) for c in lead_cols]
+                    if any(values):
+                        known[row["anchor_timestamp_utc"]] = values
+        except OSError:
+            pass
+
+    # Add the current run's row (ap30 per horizon, rounded to AP_DECIMALS).
+    current = [0.0] * horizons
+    for entry in forecast:
+        h = int(entry["horizon_steps"])
+        if 1 <= h <= horizons:
+            current[h - 1] = round(float(entry["ap30"]), AP_DECIMALS)
+    known[data["anchor_timestamp_utc"]] = current
+
+    # Regenerate the rolling 30-day grid, 0-filling anchors with no forecast.
+    step = timedelta(minutes=STEP_MINUTES)
+    cursor = anchor - timedelta(days=CSV_HISTORY_DAYS)
+    rows: list[dict] = []
+    while cursor <= anchor:
+        anchor_iso = _fmt_iso(cursor)
+        values = known.get(anchor_iso, [0.0] * horizons)
+        row = {"anchor_timestamp_utc": anchor_iso}
+        for col, value in zip(lead_cols, values):
+            row[col] = f"{value:.{AP_DECIMALS}f}"
+        rows.append(row)
+        cursor += step
+
+    with FORECAST_HISTORY_CSV.open("w", encoding="utf-8", newline="") as fp:
+        writer = csv.DictWriter(fp, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--exit-code", type=int, required=True,
@@ -142,6 +280,14 @@ def main() -> int:
         with dest.open("w", encoding="utf-8") as fp:
             json.dump(data, fp, indent=2, ensure_ascii=False)
         print(f"Wrote {dest} (forecast={len(data['forecast'])}, history={len(data['history'])})")
+
+        # Past-forecast archives are a non-critical add-on: never let a failure
+        # here break publishing of the primary latest.json / status.json.
+        try:
+            _update_forecast_history(data)
+            _update_forecast_csv(data)
+        except Exception as exc:  # noqa: BLE001 - defensive, archive is optional
+            print(f"WARN: forecast archive update failed: {exc}", file=sys.stderr)
 
         status["status"] = "ok"
         status["last_success_utc"] = now_iso

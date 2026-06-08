@@ -2,10 +2,12 @@ name: Forecast
 
 on:
   schedule:
-    # :08 and :38 of every hour — aligned with GFZ 30-min nowcast cadence,
-    # with an offset that gives publishers time to post and absorbs Actions
-    # scheduler drift.
-    - cron: '8,38 * * * *'
+    # Every 15 min (:08, :23, :38, :53). Each 30-min anchor (:00 / :30) gets two
+    # attempts: the :23 / :53 runs act as a backup so a transient upstream outage
+    # (e.g. GFZ unreachable) at the first attempt can still be recovered by the
+    # second. The :08 / :38 offsets give publishers time to post and absorb the
+    # Actions scheduler drift.
+    - cron: '8,23,38,53 * * * *'
   workflow_dispatch:
     inputs:
       now:
