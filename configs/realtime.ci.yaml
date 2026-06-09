@@ -35,7 +35,7 @@ window:
 runtime:
   device: "cpu"
   missing_data:
-    max_gap_fraction: 0.10
+    max_gap_fraction: 0.25
     ffill_limit_steps: 2
     require_recent_steps_present: 3
     anchor_rollback_max_attempts: 2
