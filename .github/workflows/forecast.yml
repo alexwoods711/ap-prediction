@@ -2,12 +2,13 @@ name: Forecast
 
 on:
   schedule:
-    # Every 15 min (:08, :23, :38, :53). Each 30-min anchor (:00 / :30) gets two
-    # attempts: the :23 / :53 runs act as a backup so a transient upstream outage
-    # (e.g. GFZ unreachable) at the first attempt can still be recovered by the
-    # second. The :08 / :38 offsets give publishers time to post and absorb the
-    # Actions scheduler drift.
-    - cron: '8,23,38,53 * * * *'
+    # Every 10 min. Each 30-min anchor gets three attempts:
+    #   :00 anchor → :08, :18, :28   |   :30 anchor → :38, :48, :58
+    # A later attempt only overwrites an earlier one when its status is the same
+    # or better (don't-downgrade in update_site_data.py), so a transient failure
+    # never clobbers an earlier good forecast. The :08 offset gives publishers
+    # time to post; note GitHub may still drop scheduled runs under load.
+    - cron: '8,18,28,38,48,58 * * * *'
   workflow_dispatch:
     inputs:
       now:

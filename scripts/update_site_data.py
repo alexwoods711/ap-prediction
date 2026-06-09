@@ -7,6 +7,13 @@ GitHub Actions workflow. On success, the newest JSON under
 `status="ok"`. On failure (non-zero inference exit code), `latest.json` is
 preserved as-is and `status.json` records the failure so the page can surface
 a warning banner.
+
+Every run (success or failure) is also recorded into the per-anchor archives
+`forecast_history.json` / `.csv` with a `status` field
+(`ok` / `imputed` / `failed`). Because each 30-min anchor is attempted several
+times, a "don't-downgrade" rule applies: a retry only overwrites the stored
+record for an anchor when its status is the same or better, so a later transient
+failure never clobbers an earlier good forecast.
 """
 
 from __future__ import annotations
@@ -25,9 +32,8 @@ EVENTS_DIR = REPO_ROOT / "vendor" / "realtime-regression-sw" / "dataset" / "even
 SITE_DATA_DIR = REPO_ROOT / "site" / "data"
 HISTORY_STEPS = 96  # 48 hours at 30-min cadence, matches the input window
 
-# Past-forecast archives written alongside latest.json so the page can plot
-# previously issued forecasts against observations (REFM-style) and offer a
-# monthly CSV download.
+# Past-forecast archives written alongside latest.json. Currently not plotted on
+# the page (data kept for future re-exposure) but always maintained.
 FORECAST_HISTORY_JSON = SITE_DATA_DIR / "forecast_history.json"
 FORECAST_HISTORY_CSV = SITE_DATA_DIR / "forecast_history.csv"
 PLOT_HISTORY_HOURS = 48     # rolling window kept in the plot archive (JSON)
@@ -36,6 +42,11 @@ STEP_MINUTES = 30           # forecast cadence
 # ap30 is a discrete index (scale min gap = 1); one decimal place recovers the
 # nearest level and stays well below model error, while keeping the CSV compact.
 AP_DECIMALS = 1
+
+# Per-anchor forecast status recorded in the archives.
+IMPUTED_THRESHOLD = 0.05    # filled_fraction above this marks the run "imputed"
+STATUS_RANK = {"failed": 0, "imputed": 1, "ok": 2}
+DEFAULT_HORIZONS = 24       # forecast length used for a "failed" placeholder row
 
 
 def _iso_now() -> str:
@@ -134,66 +145,76 @@ def _safe_float(value) -> float:
         return 0.0
 
 
-def _update_forecast_history(data: dict) -> None:
-    """Append the run's first-frame (+30 min) forecast to the plot archive.
+def _status_rank(status) -> int:
+    """Rank a status for the don't-downgrade rule (unknown/legacy → ok)."""
+    return STATUS_RANK.get(status or "", 2)
 
-    Maintains `site/data/forecast_history.json` as a continuous 30-min grid over
-    the last `PLOT_HISTORY_HOURS`, where each slot holds the first-horizon ap30
-    the model predicted for that target time together with its MCD prediction
-    interval (`lower`/`upper`). Slots without a recorded forecast are 0-filled; on
-    reload a stored 0 is treated as empty (the regression model practically never
-    emits exactly 0.0).
+
+def _run_status(exit_code: int, filled_fraction) -> str:
+    """Classify a run as ok / imputed / failed."""
+    if exit_code != 0:
+        return "failed"
+    if filled_fraction is not None and float(filled_fraction) > IMPUTED_THRESHOLD:
+        return "imputed"
+    return "ok"
+
+
+def _anchor_now() -> str:
+    """Current anchor = latest 30-min boundary minus a 2-min publish offset."""
+    ref = datetime.now(tz=timezone.utc) - timedelta(minutes=2)
+    minute = 30 if ref.minute >= 30 else 0
+    return _fmt_iso(ref.replace(minute=minute, second=0, microsecond=0))
+
+
+def _update_forecast_history(target_iso: str, ap30, lower, upper, status: str) -> None:
+    """Upsert one first-frame (+30 min) entry into forecast_history.json.
+
+    Maintains a 48-hour rolling 30-min grid; each slot carries the first-horizon
+    ap30, its MCD interval (`lower`/`upper`), and the run `status`. The current
+    target is written only when its status is the same or better than any
+    existing record for that target (don't-downgrade). Never-attempted slots are
+    0-filled with a null status.
 
     Args:
-        data: The forecast JSON payload (already loaded from the latest run).
+        target_iso: First-horizon target time (anchor + 30 min).
+        ap30: First-horizon ap30 (0 for a failed placeholder).
+        lower: MCD lower bound (or None).
+        upper: MCD upper bound (or None).
+        status: One of "ok" / "imputed" / "failed".
     """
-    forecast = data.get("forecast") or []
-    if not forecast:
-        return
-    first = forecast[0]
-    try:
-        target = _parse_iso(first["target_timestamp_utc"])
-    except (KeyError, ValueError):
-        return
-
-    # First-horizon MCD prediction interval, if the run produced one.
-    mcd = (data.get("analysis") or {}).get("mcd") or {}
-
-    def _bound(key: str):
-        arr = mcd.get(key) or []
-        return round(float(arr[0]), AP_DECIMALS) if arr else None
-
     known: dict[str, dict] = {}
     if FORECAST_HISTORY_JSON.exists():
         try:
             for entry in json.loads(FORECAST_HISTORY_JSON.read_text(encoding="utf-8")):
                 value = float(entry.get("ap30", 0) or 0)
-                if value:
+                if value or entry.get("status") == "failed":
                     known[entry["target_timestamp_utc"]] = {
                         "ap30": value,
                         "lower": entry.get("lower"),
                         "upper": entry.get("upper"),
+                        "status": entry.get("status"),
                     }
         except (ValueError, KeyError):
             pass
-    known[_fmt_iso(target)] = {
-        "ap30": round(float(first["ap30"]), AP_DECIMALS),
-        "lower": _bound("lower"),
-        "upper": _bound("upper"),
-    }
 
+    existing = known.get(target_iso)
+    if existing is None or _status_rank(status) >= _status_rank(existing.get("status")):
+        known[target_iso] = {"ap30": ap30, "lower": lower, "upper": upper, "status": status}
+
+    grid_end = max(_parse_iso(k) for k in known)
     step = timedelta(minutes=STEP_MINUTES)
-    cursor = target - timedelta(hours=PLOT_HISTORY_HOURS)
+    cursor = grid_end - timedelta(hours=PLOT_HISTORY_HOURS)
     grid: list[dict] = []
-    while cursor <= target:
+    while cursor <= grid_end:
         iso = _fmt_iso(cursor)
         rec = known.get(iso)
         if rec:
             grid.append({"target_timestamp_utc": iso, "ap30": rec["ap30"],
-                         "lower": rec["lower"], "upper": rec["upper"]})
+                         "lower": rec["lower"], "upper": rec["upper"],
+                         "status": rec.get("status")})
         else:
             grid.append({"target_timestamp_utc": iso, "ap30": 0,
-                         "lower": 0, "upper": 0})
+                         "lower": 0, "upper": 0, "status": None})
         cursor += step
 
     FORECAST_HISTORY_JSON.write_text(
@@ -201,58 +222,51 @@ def _update_forecast_history(data: dict) -> None:
     )
 
 
-def _update_forecast_csv(data: dict) -> None:
-    """Append the run's forecast to the monthly wide-format CSV archive.
+def _update_forecast_csv(anchor_iso: str, values: list[float], status: str) -> None:
+    """Upsert one anchor row into the monthly wide-format CSV archive.
 
-    Maintains `site/data/forecast_history.csv` as a rolling `CSV_HISTORY_DAYS`
-    grid with one row per anchor and one ap30 column per horizon
-    (`m_30 … m_720`, the lead time in minutes). Anchors not yet produced are
-    0-filled and replaced by real values as forecasts run. Only ap30 is stored;
-    each target time is recoverable from the anchor plus the column lead time.
+    Columns: `anchor_timestamp_utc, status, m_30 … m_720` (ap30 per horizon lead
+    time in minutes). Maintains a rolling `CSV_HISTORY_DAYS` grid. The current
+    anchor row is written only when its status is the same or better than any
+    existing row for that anchor (don't-downgrade). Never-produced anchors are
+    0-filled with an empty status.
 
     Args:
-        data: The forecast JSON payload (already loaded from the latest run).
+        anchor_iso: Anchor timestamp.
+        values: ap30 per horizon (length = horizons; all-zero for a failure).
+        status: One of "ok" / "imputed" / "failed".
     """
-    forecast = data.get("forecast") or []
-    if not forecast:
-        return
-    try:
-        anchor = _parse_iso(data["anchor_timestamp_utc"])
-    except (KeyError, ValueError):
-        return
-    horizons = len(forecast)
+    horizons = len(values) if values else DEFAULT_HORIZONS
     lead_cols = [f"m_{h * STEP_MINUTES}" for h in range(1, horizons + 1)]
-    columns = ["anchor_timestamp_utc", *lead_cols]
+    columns = ["anchor_timestamp_utc", "status", *lead_cols]
 
-    # Load existing rows into {anchor_iso: [ap30 per horizon]}; drop all-zero rows.
-    known: dict[str, list[float]] = {}
+    known: dict[str, dict] = {}
     if FORECAST_HISTORY_CSV.exists():
         try:
             with FORECAST_HISTORY_CSV.open("r", encoding="utf-8", newline="") as fp:
                 for row in csv.DictReader(fp):
-                    values = [_safe_float(row.get(c)) for c in lead_cols]
-                    if any(values):
-                        known[row["anchor_timestamp_utc"]] = values
+                    vals = [_safe_float(row.get(c)) for c in lead_cols]
+                    st = row.get("status") or None
+                    if any(vals) or st == "failed":
+                        known[row["anchor_timestamp_utc"]] = {"values": vals, "status": st}
         except OSError:
             pass
 
-    # Add the current run's row (ap30 per horizon, rounded to AP_DECIMALS).
-    current = [0.0] * horizons
-    for entry in forecast:
-        h = int(entry["horizon_steps"])
-        if 1 <= h <= horizons:
-            current[h - 1] = round(float(entry["ap30"]), AP_DECIMALS)
-    known[data["anchor_timestamp_utc"]] = current
+    new_values = [round(float(v), AP_DECIMALS) for v in values] if values else [0.0] * horizons
+    existing = known.get(anchor_iso)
+    if existing is None or _status_rank(status) >= _status_rank(existing.get("status")):
+        known[anchor_iso] = {"values": new_values, "status": status}
 
-    # Regenerate the rolling 30-day grid, 0-filling anchors with no forecast.
+    grid_end = max(_parse_iso(k) for k in known)
     step = timedelta(minutes=STEP_MINUTES)
-    cursor = anchor - timedelta(days=CSV_HISTORY_DAYS)
+    cursor = grid_end - timedelta(days=CSV_HISTORY_DAYS)
     rows: list[dict] = []
-    while cursor <= anchor:
-        anchor_iso = _fmt_iso(cursor)
-        values = known.get(anchor_iso, [0.0] * horizons)
-        row = {"anchor_timestamp_utc": anchor_iso}
-        for col, value in zip(lead_cols, values):
+    while cursor <= grid_end:
+        anchor_key = _fmt_iso(cursor)
+        rec = known.get(anchor_key)
+        vals = rec["values"] if rec else [0.0] * horizons
+        row = {"anchor_timestamp_utc": anchor_key, "status": (rec.get("status") if rec else "") or ""}
+        for col, value in zip(lead_cols, vals):
             row[col] = f"{value:.{AP_DECIMALS}f}"
         rows.append(row)
         cursor += step
@@ -261,6 +275,51 @@ def _update_forecast_csv(data: dict) -> None:
         writer = csv.DictWriter(fp, fieldnames=columns)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _record_to_archives(data: dict | None, exit_code: int) -> None:
+    """Record this run into both archives with a status (don't-downgrade).
+
+    On success the first-frame value, MCD interval, and full 24-step row are
+    recorded as `ok`/`imputed`. On failure a `failed` placeholder is written for
+    the current anchor (kept only if no better record exists for it).
+    """
+    if exit_code == 0 and data:
+        forecast = data.get("forecast") or []
+        anchor_iso = data.get("anchor_timestamp_utc")
+        if not forecast or not anchor_iso:
+            return
+        filled = (data.get("input") or {}).get("missing_data_filled_fraction")
+        status = _run_status(0, filled)
+        first = forecast[0]
+        target_iso = first["target_timestamp_utc"]
+        ap30 = round(float(first["ap30"]), AP_DECIMALS)
+        mcd = (data.get("analysis") or {}).get("mcd") or {}
+        lower = round(float(mcd["lower"][0]), AP_DECIMALS) if mcd.get("lower") else None
+        upper = round(float(mcd["upper"][0]), AP_DECIMALS) if mcd.get("upper") else None
+        horizons = len(forecast)
+        values = [0.0] * horizons
+        for entry in forecast:
+            h = int(entry["horizon_steps"])
+            if 1 <= h <= horizons:
+                values[h - 1] = round(float(entry["ap30"]), AP_DECIMALS)
+    else:
+        anchor_iso = _anchor_now()
+        target_iso = _fmt_iso(_parse_iso(anchor_iso) + timedelta(minutes=STEP_MINUTES))
+        ap30, lower, upper = 0, 0, 0
+        values = [0.0] * DEFAULT_HORIZONS
+        status = "failed"
+
+    _update_forecast_history(target_iso, ap30, lower, upper, status)
+    _update_forecast_csv(anchor_iso, values, status)
+
+
+def _record_archives_safe(data: dict | None, exit_code: int) -> None:
+    """Run _record_to_archives, never letting it break primary publishing."""
+    try:
+        _record_to_archives(data, exit_code)
+    except Exception as exc:  # noqa: BLE001 - defensive, archive is optional
+        print(f"WARN: forecast archive update failed: {exc}", file=sys.stderr)
 
 
 def main() -> int:
@@ -303,13 +362,7 @@ def main() -> int:
             json.dump(data, fp, indent=2, ensure_ascii=False)
         print(f"Wrote {dest} (forecast={len(data['forecast'])}, history={len(data['history'])})")
 
-        # Past-forecast archives are a non-critical add-on: never let a failure
-        # here break publishing of the primary latest.json / status.json.
-        try:
-            _update_forecast_history(data)
-            _update_forecast_csv(data)
-        except Exception as exc:  # noqa: BLE001 - defensive, archive is optional
-            print(f"WARN: forecast archive update failed: {exc}", file=sys.stderr)
+        _record_archives_safe(data, 0)
 
         status["status"] = "ok"
         status["last_success_utc"] = now_iso
@@ -319,6 +372,7 @@ def main() -> int:
         status["last_error"] = {"code": args.exit_code, "message": message}
         print(f"Inference failed (exit={args.exit_code}); preserving previous latest.json.",
               file=sys.stderr)
+        _record_archives_safe(None, args.exit_code)
 
     _save_status(status)
     return 0
