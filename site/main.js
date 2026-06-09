@@ -5,7 +5,6 @@
 (async () => {
   const LATEST_URL = "./data/latest.json";
   const STATUS_URL = "./data/status.json";
-  const FORECAST_HISTORY_URL = "./data/forecast_history.json";
   const STALE_MS = 2 * 60 * 60 * 1000;  // 2 hours
 
   const $ = (id) => document.getElementById(id);
@@ -67,15 +66,6 @@
     return;
   }
 
-  // Past-forecast archive (optional; absent on older deploys). Each entry is the
-  // first-horizon (+30 min) ap30 the model issued for that target time.
-  let forecastHistory = [];
-  try {
-    forecastHistory = await fetchJSON(FORECAST_HISTORY_URL);
-  } catch {
-    forecastHistory = [];
-  }
-
   // Read input fill fraction for banner logic (metadata panel removed from UI).
   const filled = latest.input?.missing_data_filled_fraction;
   $("last-fetched").textContent = fmtDual(new Date().toISOString());
@@ -111,31 +101,7 @@
     y: e.ap30,
   }));
 
-  // Past forecasts: the first-horizon (+30 min) value the model issued at each
-  // past step (with its MCD interval), drawn over the same window as the observed
-  // history so the two can be compared. Archive 0-fills unproduced slots; render
-  // those as gaps.
   const anchorMs = new Date(latest.anchor_timestamp_utc).getTime();
-  const historyStartMs = historyPoints.length ? historyPoints[0].x.getTime() : -Infinity;
-  const pastEntries = (forecastHistory ?? []).filter((e) => {
-    const t = new Date(e.target_timestamp_utc).getTime();
-    return t >= historyStartMs && t <= anchorMs;
-  });
-  const pastForecastPoints = pastEntries.map((e) => ({
-    x: new Date(e.target_timestamp_utc),
-    y: e.ap30 === 0 ? null : e.ap30,
-  }));
-  // Per-point MCD interval for the past forecasts (absent on older archive
-  // entries → rendered as a gap in the band).
-  const hasPastBound = (e) => e.ap30 !== 0 && e.lower != null && e.upper != null;
-  const pastLowerPoints = pastEntries.map((e) => ({
-    x: new Date(e.target_timestamp_utc),
-    y: hasPastBound(e) ? e.lower : null,
-  }));
-  const pastUpperPoints = pastEntries.map((e) => ({
-    x: new Date(e.target_timestamp_utc),
-    y: hasPastBound(e) ? e.upper : null,
-  }));
 
   // MCD uncertainty band. The realtime pipeline writes parallel arrays under
   // analysis.mcd aligned to forecast horizon index; absent on older payloads.
@@ -159,22 +125,32 @@
     ? [historyPoints[historyPoints.length - 1], forecastPoints[0]]
     : [];
 
-  // Vertical "now" divider at the anchor (REFM-style past/future separator),
-  // drawn as a 2-point dataset spanning the y-range so no plugin is needed.
-  const yValues = [...historyPoints, ...forecastPoints, ...uncertaintyUpper,
-                   ...pastForecastPoints, ...pastUpperPoints]
-    .map((p) => p.y)
-    .filter((v) => v != null);
-  const yMax = yValues.length ? Math.max(...yValues) * 1.1 : 10;
-  const nowDivider = [
-    { x: new Date(latest.anchor_timestamp_utc), y: 0 },
-    { x: new Date(latest.anchor_timestamp_utc), y: yMax },
-  ];
+  // Vertical "now" divider at the anchor, drawn by a plugin so it spans the full
+  // plot height (chartArea top→bottom) regardless of the y-axis scale.
+  const nowLinePlugin = {
+    id: "nowLine",
+    afterDatasetsDraw(chart) {
+      const px = chart.scales.x.getPixelForValue(anchorMs);
+      if (px == null || Number.isNaN(px)) return;
+      const { top, bottom } = chart.chartArea;
+      const c = chart.ctx;
+      c.save();
+      c.beginPath();
+      c.setLineDash([2, 2]);
+      c.lineWidth = 1;
+      c.strokeStyle = "#9ca3af";
+      c.moveTo(px, top);
+      c.lineTo(px, bottom);
+      c.stroke();
+      c.restore();
+    },
+  };
 
   const ctx = $("forecast-chart").getContext("2d");
   // eslint-disable-next-line no-undef
   new Chart(ctx, {
     type: "line",
+    plugins: [nowLinePlugin],
     data: {
       datasets: [
         {
@@ -184,36 +160,6 @@
           backgroundColor: "#dc2626",
           borderWidth: 1.5,
           pointRadius: 0,
-          tension: 0.15,
-        },
-        {
-          label: "past uncertainty lower",
-          data: pastLowerPoints,
-          borderColor: "rgba(22, 163, 74, 0)",
-          pointRadius: 0,
-          fill: false,
-          spanGaps: false,
-          tension: 0.15,
-        },
-        {
-          label: "past uncertainty",
-          data: pastUpperPoints,
-          borderColor: "rgba(22, 163, 74, 0)",
-          backgroundColor: "rgba(22, 163, 74, 0.15)",
-          pointRadius: 0,
-          fill: "-1",
-          spanGaps: false,
-          tension: 0.15,
-        },
-        {
-          label: "past forecast",
-          data: pastForecastPoints,
-          borderColor: "#16a34a",
-          backgroundColor: "#16a34a",
-          borderWidth: 1.5,
-          borderDash: [4, 3],
-          pointRadius: 2,
-          spanGaps: false,
           tension: 0.15,
         },
         {
@@ -253,17 +199,6 @@
           fill: false,
           tension: 0,
         },
-        {
-          label: "now",
-          data: nowDivider,
-          borderColor: "#9ca3af",
-          borderWidth: 1,
-          borderDash: [2, 2],
-          pointRadius: 0,
-          showLine: true,
-          fill: false,
-          tension: 0,
-        },
       ],
     },
     options: {
@@ -276,14 +211,12 @@
           position: "bottom",
           labels: {
             filter: (item) =>
-              item.text !== "bridge" && item.text !== "uncertainty lower" && item.text !== "now" &&
-              item.text !== "past uncertainty lower" && item.text !== "past uncertainty",
+              item.text !== "bridge" && item.text !== "uncertainty lower",
             // Display legend in this fixed order regardless of dataset
             // array order (which is constrained by draw order + fill refs).
             sort: (a, b) => {
               const order = [
                 "observed ap30",
-                "past forecast",
                 "predicted ap30",
                 "uncertainty",
               ];
@@ -294,10 +227,7 @@
         tooltip: {
           filter: (item) =>
             item.dataset.label !== "bridge" &&
-            item.dataset.label !== "uncertainty lower" &&
-            item.dataset.label !== "now" &&
-            item.dataset.label !== "past uncertainty lower" &&
-            item.dataset.label !== "past uncertainty",
+            item.dataset.label !== "uncertainty lower",
           callbacks: {
             title: (items) => {
               const d = items[0].parsed.x;
