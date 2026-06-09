@@ -34,11 +34,15 @@ window:
 
 runtime:
   device: "cpu"
+  # "Always emit" policy: keep the anchor at now and impute missing inputs
+  # (carry the last value forward) so a forecast is produced every run, even when
+  # recent data is delayed/missing. Degraded inputs are reflected in
+  # missing_data_filled_fraction (the page warns when it is high).
   missing_data:
-    max_gap_fraction: 0.25
-    ffill_limit_steps: 2
-    require_recent_steps_present: 3
-    anchor_rollback_max_attempts: 2
+    max_gap_fraction: 0.9          # emit unless a variable is almost entirely missing
+    ffill_limit_steps: 48          # carry the last value forward across long tail gaps
+    require_recent_steps_present: 0  # do not require the most recent steps to be real
+    anchor_rollback_max_attempts: 2  # last-resort fallback if the current anchor is unfillable
 
 # MCD enabled so the site can render ±2σ uncertainty bands on the forecast.
 # Plot and attention artifacts are still skipped — the site only needs JSON.
