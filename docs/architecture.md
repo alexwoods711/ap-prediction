@@ -245,6 +245,26 @@ its status is the same or better (`ok` > `imputed` > `failed`), so a transient
 failure never clobbers a good forecast and an `imputed` slot upgrades to `ok`
 when clean data returns.
 
+### 4.6 Page banner messages
+
+The status banner shows one of three colours — green (ok), yellow (warn), red
+(error) — with the messages below, evaluated top-down (the first match wins).
+
+| Banner | Message | When | Meaning |
+|---|---|---|---|
+| error | `Status file unavailable …` | `status.json` cannot be fetched | Status file missing (pipeline not run yet / Pages issue) |
+| error | `Forecast data unavailable …` | `latest.json` cannot be fetched | No forecast output exists yet |
+| error | `Pipeline error: Inference exited with code N. Showing last successful forecast.` | `status = "error"` (unexpected non-0/2 exit) | Inference crashed unexpectedly; last good forecast shown |
+| warn | `InsufficientDataError — upstream data gap, waiting for next cycle. Showing last successful forecast.` | `status = "warn"` (exit 2) | Data unavailable / unfillable; last good forecast kept (archive `failed`) |
+| warn | `Data is stale: last successful run was X.X hours ago.` | ok but last run > 2 h old | Forecast not updated recently (runs dropped) |
+| warn | `X.X% of input data was filled from upstream gaps.` | ok, fresh, but imputed > 5% | Forecast produced on imputed inputs (archive `imputed`) |
+| ok | `Forecast is current.` | ok, fresh (< 2 h), imputed ≤ 5% | Fresh, clean forecast (archive `ok`) |
+
+The `InsufficientDataError …` text is `status.json.last_error.message`;
+`Showing last successful forecast.` is appended by the page. The banner status
+maps to the per-anchor archive status: ok ↔ `ok`, "X% filled" ↔ `imputed`,
+"InsufficientDataError" / "Pipeline error" ↔ `failed`.
+
 ---
 
 ## 5. Model assets
