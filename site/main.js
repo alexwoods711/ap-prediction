@@ -68,7 +68,7 @@
 
   // Read input fill fraction for banner logic (metadata panel removed from UI).
   const filled = latest.input?.missing_data_filled_fraction;
-  $("last-fetched").textContent = fmtDual(new Date().toISOString());
+  $("last-fetched").textContent = fmtUTC(new Date().toISOString());
 
   // Banner precedence: explicit status error/warn > staleness > data-quality.
   const runAgeMs = Date.now() - new Date(latest.run_timestamp_utc).getTime();
