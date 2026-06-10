@@ -4,14 +4,17 @@ This document explains how `ap-prediction` works end-to-end: which pieces
 exist, how data flows from the live upstream feeds to the browser, and how the
 public page is served at `https://sites.njit.edu/ap-prediction/`.
 
+For a step-by-step walkthrough of how each forecast is produced (including how
+missing/late data is handled), see **[forecast-process.md](forecast-process.md)**.
+
 ---
 
 ## 1. Overview
 
 `ap-prediction` publishes a live 12-hour ap30 geomagnetic-index forecast chart
 at `https://sites.njit.edu/ap-prediction/`. A GitHub Actions cron re-runs the
-inference pipeline every 30 minutes, writes a fresh `latest.json`, and deploys
-the updated static site to GitHub Pages.
+inference pipeline every 10 minutes (three attempts per 30-min anchor), writes a
+fresh `latest.json`, and deploys the updated static site to GitHub Pages.
 
 **Design tenets**
 
@@ -111,12 +114,11 @@ Every 30 minutes, one full cycle from upstream feed to browser happens:
                 │ Browser — site/main.js                              │
                 │                                                     │
                 │  1. fetch latest.json + status.json (no-store)      │
-                │  2. fetch forecast_history.json (past forecasts)    │
-                │  3. Populate metadata; paint status banner          │
-                │  4. Render Chart.js: red observed history,          │
-                │     green past forecast, blue forecast,             │
-                │     MCD band, dashed "now" divider                  │
-                │  5. x-axis tick labels formatted in UTC             │
+                │  2. Populate metadata; paint status banner          │
+                │  3. Render Chart.js: red observed history,          │
+                │     blue forecast + MCD uncertainty band,           │
+                │     vertical "now" divider (full height)            │
+                │  4. x-axis tick labels formatted in UTC             │
                 └─────────────────────────────────────────────────────┘
 ```
 
@@ -173,15 +175,17 @@ File: [.github/workflows/forecast.yml](../.github/workflows/forecast.yml)
 ```yaml
 on:
   schedule:
-    - cron: '8,38 * * * *'     # every 30 min: :08 and :38 UTC
+    - cron: '8,18,28,38,48,58 * * * *'   # every 10 min (3 attempts per anchor)
   workflow_dispatch:            # manual trigger from the UI
     inputs:
       now: {description: 'ISO8601 anchor override', required: false}
 ```
 
-- **Cron** — fires at :08 and :38 UTC, aligned with the GFZ 30-min nowcast
-  cadence with an offset that gives publishers time to post and absorbs the
-  GitHub scheduler's drift.
+- **Cron** — every 10 minutes, giving each 30-min anchor three attempts
+  (`:08/:18/:28` → anchor `:00`; `:38/:48/:58` → anchor `:30`). A later attempt
+  only replaces an earlier one when its status is the same or better (see §4.5),
+  so a transient failure never clobbers a good forecast. GitHub may still drop
+  scheduled runs under load.
 - **workflow_dispatch** — manual trigger with optional `now` parameter for
   replaying a specific anchor (debugging / backfill).
 
@@ -224,19 +228,27 @@ no submodule checkout and no release-download step.
 | 10 | `actions/upload-pages-artifact@v3 path:site` | Upload the `site/` tree as a Pages artifact |
 | 11 | `actions/deploy-pages@v4` | Publish the artifact to the live site |
 
-### 4.5 Failure handling
+### 4.5 Failure handling and forecast status
 
-The workflow itself **never fails** on inference errors. Instead, the failure
-state is recorded in `status.json` and rendered as a banner on the page:
+The workflow itself **never fails** on inference errors; the outcome is recorded
+in `status.json` (for the banner) and as a per-anchor `status` in the archives.
+Missing inputs are imputed so a forecast is produced whenever any data is
+available ("always emit"); each run is classified as:
 
-| Inference exit code | `status.json.status` | Page banner |
-|---------------------|----------------------|-------------|
-| `0` (success)       | `"ok"`               | Green: "Forecast is current." |
-| `2` (InsufficientDataError) | `"warn"`     | Yellow: upstream data gap |
-| other non-zero      | `"error"`            | Red: inference error |
+| Outcome | `status` | Page banner |
+|---|---|---|
+| exit 0, ≤ 5% imputed | `ok` | Green: "Forecast is current." |
+| exit 0, > 5% imputed | `imputed` | Yellow: data partly imputed |
+| exit 2 / other (no forecast) | `failed` | Yellow / red: data gap |
 
-When the run fails, `latest.json` is **not overwritten** — the page keeps
-showing the last successful forecast with the warning banner on top.
+When a run fails, `latest.json` is **not overwritten** — the page keeps showing
+the last successful forecast. Because each anchor is attempted three times, a
+**don't-downgrade** rule applies: a retry only replaces the stored record when
+its status is the same or better (`ok` > `imputed` > `failed`), so a transient
+failure never clobbers a good forecast and an `imputed` slot upgrades to `ok`
+when clean data returns.
+
+See **[forecast-process.md](forecast-process.md)** for the full step-by-step.
 
 ---
 
@@ -361,13 +373,13 @@ agnostic to which of these hosts it is served from.
 |------|---------|
 | [`.github/workflows/forecast.yml`](../.github/workflows/forecast.yml) | Cron-triggered build+deploy pipeline |
 | [`configs/realtime.ci.yaml`](../configs/realtime.ci.yaml) | Active profile + path overrides (checkpoint, stats, event_dir, results_dir relative to the engine root) |
-| [`scripts/update_site_data.py`](../scripts/update_site_data.py) | Post-process: read latest forecast JSON, embed recent observed ap30 history, write `site/data/latest.json` + `status.json`, and append to the past-forecast archives (`forecast_history.json` / `.csv`) |
-| [`site/index.html`](../site/index.html) | Static page shell. Inline CSS. Loads Chart.js v4 + date-fns adapter from jsDelivr CDN. Links the `forecast_history.csv` download |
-| [`site/main.js`](../site/main.js) | Fetches `latest.json` + `status.json` + `forecast_history.json`; paints banner; renders red observed history, green past-forecast (+30 min) line, blue forecast with shaded MCD band, and a dashed "now" divider; UTC-formatted x-axis ticks; tooltips in UTC / KST |
+| [`scripts/update_site_data.py`](../scripts/update_site_data.py) | Post-process: read latest forecast JSON, embed recent observed ap30 history, write `site/data/latest.json` + `status.json`, and append the per-anchor forecast archives (`forecast_history.json` / `.csv`) with a `status` (ok / imputed / failed) under the don't-downgrade rule |
+| [`site/index.html`](../site/index.html) | Static page shell. Inline CSS. Loads Chart.js v4 + date-fns adapter from jsDelivr CDN |
+| [`site/main.js`](../site/main.js) | Fetches `latest.json` + `status.json`; paints banner; renders red observed history, blue forecast with shaded MCD band, and a full-height "now" divider; UTC-formatted x-axis ticks; tooltips in UTC / KST |
 | [`site/data/latest.json`](../site/data/latest.json) | Most recent forecast payload (auto-committed by the workflow) |
 | [`site/data/status.json`](../site/data/status.json) | Pipeline health (auto-committed by the workflow) |
-| [`site/data/forecast_history.json`](../site/data/forecast_history.json) | Rolling first-horizon (+30 min) past-forecast archive (ap30 + MCD `lower`/`upper`) that feeds the green plot line and its shaded interval band (auto-committed) |
-| [`site/data/forecast_history.csv`](../site/data/forecast_history.csv) | Rolling 30-day wide ap30 forecast archive (`m_30 … m_720`), offered as a CSV download (auto-committed) |
+| [`site/data/forecast_history.json`](../site/data/forecast_history.json) | Rolling first-horizon (+30 min) forecast archive (ap30 + MCD `lower`/`upper` + `status`). Maintained for future re-exposure; not currently plotted (auto-committed) |
+| [`site/data/forecast_history.csv`](../site/data/forecast_history.csv) | Rolling 30-day wide ap30 archive (`anchor_timestamp_utc, status, m_30 … m_720`). Maintained but not currently linked for download (auto-committed) |
 | [`vendor/realtime-regression-sw/`](../vendor/realtime-regression-sw) | Inlined inference engine (fetch / pipeline / inference / output) + committed checkpoint |
 
 ### 7.1 `latest.json` schema
