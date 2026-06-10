@@ -166,6 +166,17 @@ def _anchor_now() -> str:
     return _fmt_iso(ref.replace(minute=minute, second=0, microsecond=0))
 
 
+def _current_latest_anchor() -> str | None:
+    """Anchor of the currently-published latest.json, or None if absent."""
+    path = SITE_DATA_DIR / "latest.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("anchor_timestamp_utc")
+    except (ValueError, OSError):
+        return None
+
+
 def _update_forecast_history(target_iso: str, ap30, lower, upper, status: str) -> None:
     """Upsert one first-frame (+30 min) entry into forecast_history.json.
 
@@ -368,10 +379,20 @@ def main() -> int:
         status["last_success_utc"] = now_iso
         status["last_error"] = None
     else:
-        status["status"] = label
-        status["last_error"] = {"code": args.exit_code, "message": message}
-        print(f"Inference failed (exit={args.exit_code}); preserving previous latest.json.",
-              file=sys.stderr)
+        # Don't-downgrade the banner: if the current anchor already has a
+        # successful forecast (latest.json matches), a transient retry failure
+        # must not flip the banner to warn/error — the good forecast still stands
+        # and main.js still applies its own staleness / imputed checks.
+        if _current_latest_anchor() == _anchor_now():
+            status["status"] = "ok"
+            status["last_error"] = None
+            print(f"Inference failed (exit={args.exit_code}) but anchor "
+                  f"{_anchor_now()} already succeeded; banner kept ok.", file=sys.stderr)
+        else:
+            status["status"] = label
+            status["last_error"] = {"code": args.exit_code, "message": message}
+            print(f"Inference failed (exit={args.exit_code}); preserving previous latest.json.",
+                  file=sys.stderr)
         _record_archives_safe(None, args.exit_code)
 
     _save_status(status)
