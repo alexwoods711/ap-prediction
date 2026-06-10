@@ -4,9 +4,6 @@ This document explains how `ap-prediction` works end-to-end: which pieces
 exist, how data flows from the live upstream feeds to the browser, and how the
 public page is served at `https://sites.njit.edu/ap-prediction/`.
 
-For a step-by-step walkthrough of how each forecast is produced (including how
-missing/late data is handled), see **[forecast-process.md](forecast-process.md)**.
-
 ---
 
 ## 1. Overview
@@ -247,8 +244,6 @@ the last successful forecast. Because each anchor is attempted three times, a
 its status is the same or better (`ok` > `imputed` > `failed`), so a transient
 failure never clobbers a good forecast and an `imputed` slot upgrades to `ok`
 when clean data returns.
-
-See **[forecast-process.md](forecast-process.md)** for the full step-by-step.
 
 ---
 
