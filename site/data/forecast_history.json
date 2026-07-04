@@ -1,26 +1,5 @@
 [
   {
-    "target_timestamp_utc": "2026-07-02T03:00:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-07-02T03:30:00Z",
-    "ap30": 0.0,
-    "lower": 0,
-    "upper": 0,
-    "status": "failed"
-  },
-  {
-    "target_timestamp_utc": "2026-07-02T04:00:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
     "target_timestamp_utc": "2026-07-02T04:30:00Z",
     "ap30": 0,
     "lower": 0,
@@ -673,6 +652,27 @@
   },
   {
     "target_timestamp_utc": "2026-07-04T03:00:00Z",
+    "ap30": 0.0,
+    "lower": 0,
+    "upper": 0,
+    "status": "failed"
+  },
+  {
+    "target_timestamp_utc": "2026-07-04T03:30:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-07-04T04:00:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-07-04T04:30:00Z",
     "ap30": 0,
     "lower": 0,
     "upper": 0,
