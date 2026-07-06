@@ -460,7 +460,7 @@ the event window provides 24 steps.
 ## 8. Cost and quota
 
 - GitHub Actions Linux runner minutes are **unlimited and free for public
-  repos**. The 30-min cron uses ~720 minutes per month; cost is $0.
+  repos**. The 10-min cron runs ~4,320 times per month; cost is $0.
 - GitHub Pages bandwidth: 100 GB/month soft limit. The static site is a few
   hundred KB; nowhere near the limit.
 - NOAA and GFZ feeds are unauthenticated public JSON/text; no API key or quota.

@@ -5,13 +5,13 @@ Public dashboard for 12-hour ap30 geomagnetic index forecasts.
 - Deployed site: https://sites.njit.edu/ap-prediction/
   (also at https://njit-research.github.io/ap-prediction/)
 - Inference engine + model weights: bundled in-tree under `vendor/realtime-regression-sw/`
-- Forecast every 30 min, produced every 15 min (cron `8,23,38,53 * * * *`,
-  two attempts per anchor as a backup against transient upstream outages)
+- Forecast every 10 min, three attempts per 30-min anchor (cron `8,18,28,38,48,58 * * * *`,
+  a backup against transient upstream outages)
 - Architecture details: [docs/architecture.md](docs/architecture.md)
 
 ## How it works
 
-1. `.github/workflows/forecast.yml` runs every 15 min.
+1. `.github/workflows/forecast.yml` runs every 10 min.
 2. It checks out this repo — the inference engine and the model checkpoint
    (`model_best.pth` + `table_stats.pkl`) are committed in-tree — and runs
    `scripts/run_realtime.py`. If an upstream feed is unreachable the run exits
