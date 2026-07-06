@@ -37,7 +37,7 @@ HISTORY_STEPS = 96  # 48 hours at 30-min cadence, matches the input window
 FORECAST_HISTORY_JSON = SITE_DATA_DIR / "forecast_history.json"
 FORECAST_HISTORY_CSV = SITE_DATA_DIR / "forecast_history.csv"
 PLOT_HISTORY_HOURS = 48     # rolling window kept in the plot archive (JSON)
-CSV_HISTORY_DAYS = 30       # rolling window kept in the monthly archive (CSV)
+CSV_HISTORY_DAYS = 90       # rolling window kept in the 90-day archive (CSV)
 STEP_MINUTES = 30           # forecast cadence
 # ap30 is a discrete index (scale min gap = 1); one decimal place recovers the
 # nearest level and stays well below model error, while keeping the CSV compact.
@@ -234,7 +234,7 @@ def _update_forecast_history(target_iso: str, ap30, lower, upper, status: str) -
 
 
 def _update_forecast_csv(anchor_iso: str, values: list[float], status: str) -> None:
-    """Upsert one anchor row into the monthly wide-format CSV archive.
+    """Upsert one anchor row into the 90-day wide-format CSV archive.
 
     Columns: `anchor_timestamp_utc, status, m_30 … m_720` (ap30 per horizon lead
     time in minutes). Maintains a rolling `CSV_HISTORY_DAYS` grid. The current
