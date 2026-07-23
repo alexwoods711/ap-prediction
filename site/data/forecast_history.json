@@ -1,12 +1,5 @@
 [
   {
-    "target_timestamp_utc": "2026-07-21T13:30:00Z",
-    "ap30": 11.3,
-    "lower": 7.0,
-    "upper": 14.7,
-    "status": "ok"
-  },
-  {
     "target_timestamp_utc": "2026-07-21T14:00:00Z",
     "ap30": 9.9,
     "lower": 5.5,
@@ -676,6 +669,13 @@
     "ap30": 31.0,
     "lower": 6.6,
     "upper": 58.4,
+    "status": "ok"
+  },
+  {
+    "target_timestamp_utc": "2026-07-23T14:00:00Z",
+    "ap30": 24.2,
+    "lower": 8.3,
+    "upper": 41.1,
     "status": "ok"
   }
 ]
