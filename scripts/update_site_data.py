@@ -118,12 +118,29 @@ def _load_history(event_csv: Path, steps: int = HISTORY_STEPS) -> list[dict]:
     return entries
 
 
+# run_realtime.py exit codes. 2 and 3 are both transient data gaps -- the banner treats them
+# alike -- but they are recorded separately because the archive could not previously say which,
+# and the unexplained short gaps in coverage need exactly that distinction.
+EXIT_REASON = {
+    0: "ok",
+    2: "feed_unreachable",
+    3: "sparse_data",
+}
+
+
+def _exit_reason(exit_code: int) -> str:
+    """Short machine-readable cause for the archive."""
+    return EXIT_REASON.get(exit_code, f"error_{exit_code}")
+
+
 def _error_label(exit_code: int) -> tuple[str, str]:
     """Map realtime CLI exit code to a banner status + human message."""
     if exit_code == 0:
         return "ok", ""
     if exit_code == 2:
-        return "warn", "InsufficientDataError — upstream data gap, waiting for next cycle."
+        return "warn", "Upstream feed unreachable — waiting for next cycle."
+    if exit_code == 3:
+        return "warn", "Data too sparse to build a window — waiting for next cycle."
     return "error", f"Inference exited with code {exit_code}."
 
 
@@ -233,7 +250,8 @@ def _update_forecast_history(target_iso: str, ap30, lower, upper, status: str) -
     )
 
 
-def _update_forecast_csv(anchor_iso: str, values: list[float], status: str) -> None:
+def _update_forecast_csv(anchor_iso: str, values: list[float], status: str,
+                         reason: str = "") -> None:
     """Upsert one anchor row into the 90-day wide-format CSV archive.
 
     Columns: `anchor_timestamp_utc, status, m_30 … m_720` (ap30 per horizon lead
@@ -246,10 +264,13 @@ def _update_forecast_csv(anchor_iso: str, values: list[float], status: str) -> N
         anchor_iso: Anchor timestamp.
         values: ap30 per horizon (length = horizons; all-zero for a failure).
         status: One of "ok" / "imputed" / "failed".
+        reason: Machine-readable cause -- "ok", "feed_unreachable", "sparse_data",
+            "no_forecast_in_payload" or "error_<code>". Rows written before this column
+            existed keep an empty value.
     """
     horizons = len(values) if values else DEFAULT_HORIZONS
     lead_cols = [f"m_{h * STEP_MINUTES}" for h in range(1, horizons + 1)]
-    columns = ["anchor_timestamp_utc", "status", *lead_cols]
+    columns = ["anchor_timestamp_utc", "status", "reason", *lead_cols]
 
     known: dict[str, dict] = {}
     if FORECAST_HISTORY_CSV.exists():
@@ -259,14 +280,15 @@ def _update_forecast_csv(anchor_iso: str, values: list[float], status: str) -> N
                     vals = [_safe_float(row.get(c)) for c in lead_cols]
                     st = row.get("status") or None
                     if any(vals) or st == "failed":
-                        known[row["anchor_timestamp_utc"]] = {"values": vals, "status": st}
+                        known[row["anchor_timestamp_utc"]] = {
+                            "values": vals, "status": st, "reason": row.get("reason") or ""}
         except OSError:
             pass
 
     new_values = [round(float(v), AP_DECIMALS) for v in values] if values else [0.0] * horizons
     existing = known.get(anchor_iso)
     if existing is None or _status_rank(status) >= _status_rank(existing.get("status")):
-        known[anchor_iso] = {"values": new_values, "status": status}
+        known[anchor_iso] = {"values": new_values, "status": status, "reason": reason}
 
     grid_end = max(_parse_iso(k) for k in known)
     step = timedelta(minutes=STEP_MINUTES)
@@ -276,7 +298,9 @@ def _update_forecast_csv(anchor_iso: str, values: list[float], status: str) -> N
         anchor_key = _fmt_iso(cursor)
         rec = known.get(anchor_key)
         vals = rec["values"] if rec else [0.0] * horizons
-        row = {"anchor_timestamp_utc": anchor_key, "status": (rec.get("status") if rec else "") or ""}
+        row = {"anchor_timestamp_utc": anchor_key,
+               "status": (rec.get("status") if rec else "") or "",
+               "reason": (rec.get("reason") if rec else "") or ""}
         for col, value in zip(lead_cols, vals):
             row[col] = f"{value:.{AP_DECIMALS}f}"
         rows.append(row)
@@ -288,6 +312,19 @@ def _update_forecast_csv(anchor_iso: str, values: list[float], status: str) -> N
         writer.writerows(rows)
 
 
+def _record_placeholder(reason: str) -> None:
+    """Write a `failed` row for the current anchor with the reason recorded.
+
+    Every path that ends without a forecast must leave a row. Over 2026-06/07, 680 of 1,384
+    anchors had no row at all, which made the missing two thirds of the record impossible to
+    diagnose after the fact -- a run that fails early is exactly the run worth explaining.
+    """
+    anchor_iso = _anchor_now()
+    target_iso = _fmt_iso(_parse_iso(anchor_iso) + timedelta(minutes=STEP_MINUTES))
+    _update_forecast_history(target_iso, 0, 0, 0, "failed")
+    _update_forecast_csv(anchor_iso, [0.0] * DEFAULT_HORIZONS, "failed", reason)
+
+
 def _record_to_archives(data: dict | None, exit_code: int) -> None:
     """Record this run into both archives with a status (don't-downgrade).
 
@@ -295,10 +332,14 @@ def _record_to_archives(data: dict | None, exit_code: int) -> None:
     recorded as `ok`/`imputed`. On failure a `failed` placeholder is written for
     the current anchor (kept only if no better record exists for it).
     """
+    reason = _exit_reason(exit_code)
     if exit_code == 0 and data:
         forecast = data.get("forecast") or []
         anchor_iso = data.get("anchor_timestamp_utc")
         if not forecast or not anchor_iso:
+            # Success was reported but the payload is unusable. Record it rather than
+            # returning silently -- an anchor with no row at all cannot be diagnosed later.
+            _record_placeholder("no_forecast_in_payload")
             return
         filled = (data.get("input") or {}).get("missing_data_filled_fraction")
         status = _run_status(0, filled)
@@ -322,13 +363,16 @@ def _record_to_archives(data: dict | None, exit_code: int) -> None:
         status = "failed"
 
     _update_forecast_history(target_iso, ap30, lower, upper, status)
-    _update_forecast_csv(anchor_iso, values, status)
+    _update_forecast_csv(anchor_iso, values, status, reason)
 
 
-def _record_archives_safe(data: dict | None, exit_code: int) -> None:
+def _record_archives_safe(data: dict | None, exit_code: int, reason: str | None = None) -> None:
     """Run _record_to_archives, never letting it break primary publishing."""
     try:
-        _record_to_archives(data, exit_code)
+        if reason is not None:
+            _record_placeholder(reason)
+        else:
+            _record_to_archives(data, exit_code)
     except Exception as exc:  # noqa: BLE001 - defensive, archive is optional
         print(f"WARN: forecast archive update failed: {exc}", file=sys.stderr)
 
@@ -354,6 +398,7 @@ def main() -> int:
                 "message": "Inference reported success but no JSON output was found.",
             }
             _save_status(status)
+            _record_archives_safe(None, args.exit_code, reason="no_prediction_json")
             print("WARN: no prediction JSON located; status=error written.", file=sys.stderr)
             return 0
 
