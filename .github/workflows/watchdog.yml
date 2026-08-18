@@ -1,0 +1,35 @@
+name: Watchdog
+
+# Cancels Forecast runs stuck in "waiting". Twice (2026-07-24 on
+# eunsu-park/ap-prediction, 2026-08-06 on njit-research/ap-prediction) a run
+# got stuck waiting on the github-pages environment with no reviewer and no
+# wait timer — a GitHub deployment glitch. The stuck run holds the "forecast"
+# concurrency group, so every later cron run is queued and then cancelled,
+# freezing the site until the zombie is cancelled by hand (or hits the 35-day
+# workflow limit). A healthy run finishes in minutes, so anything waiting
+# longer than 2 hours is stuck and safe to cancel.
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  cancel-stuck-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Forecast runs stuck in waiting
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cutoff=$(date -u -d '2 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+          gh run list -R "$GITHUB_REPOSITORY" --workflow forecast.yml \
+            --status waiting --json databaseId,createdAt \
+            --jq ".[] | select(.createdAt < \"$cutoff\") | .databaseId" |
+          while read -r id; do
+            echo "Cancelling stuck run $id (waiting since before $cutoff)"
+            gh run cancel "$id" -R "$GITHUB_REPOSITORY"
+          done
