@@ -1,68 +1,5 @@
 [
   {
-    "target_timestamp_utc": "2026-08-29T18:30:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-08-29T19:00:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-08-29T19:30:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-08-29T20:00:00Z",
-    "ap30": 13.4,
-    "lower": 8.6,
-    "upper": 18.5,
-    "status": "ok"
-  },
-  {
-    "target_timestamp_utc": "2026-08-29T20:30:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-08-29T21:00:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-08-29T21:30:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-08-29T22:00:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-08-29T22:30:00Z",
-    "ap30": 15.6,
-    "lower": 10.3,
-    "upper": 19.9,
-    "status": "ok"
-  },
-  {
     "target_timestamp_utc": "2026-08-29T23:00:00Z",
     "ap30": 0,
     "lower": 0,
@@ -676,6 +613,69 @@
     "ap30": 6.1,
     "lower": 4.8,
     "upper": 7.6,
+    "status": "ok"
+  },
+  {
+    "target_timestamp_utc": "2026-08-31T19:00:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-08-31T19:30:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-08-31T20:00:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-08-31T20:30:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-08-31T21:00:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-08-31T21:30:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-08-31T22:00:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-08-31T22:30:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-08-31T23:00:00Z",
+    "ap30": 8.2,
+    "lower": 6.8,
+    "upper": 9.6,
     "status": "ok"
   }
 ]
