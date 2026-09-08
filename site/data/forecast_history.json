@@ -1,54 +1,5 @@
 [
   {
-    "target_timestamp_utc": "2026-09-06T15:30:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-09-06T16:00:00Z",
-    "ap30": 5.8,
-    "lower": 4.2,
-    "upper": 7.1,
-    "status": "ok"
-  },
-  {
-    "target_timestamp_utc": "2026-09-06T16:30:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-09-06T17:00:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-09-06T17:30:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
-    "target_timestamp_utc": "2026-09-06T18:00:00Z",
-    "ap30": 4.1,
-    "lower": 3.1,
-    "upper": 5.2,
-    "status": "ok"
-  },
-  {
-    "target_timestamp_utc": "2026-09-06T18:30:00Z",
-    "ap30": 0,
-    "lower": 0,
-    "upper": 0,
-    "status": null
-  },
-  {
     "target_timestamp_utc": "2026-09-06T19:00:00Z",
     "ap30": 0,
     "lower": 0,
@@ -676,6 +627,55 @@
     "ap30": 29.4,
     "lower": 20.5,
     "upper": 38.6,
+    "status": "ok"
+  },
+  {
+    "target_timestamp_utc": "2026-09-08T16:00:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-09-08T16:30:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-09-08T17:00:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-09-08T17:30:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-09-08T18:00:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-09-08T18:30:00Z",
+    "ap30": 0,
+    "lower": 0,
+    "upper": 0,
+    "status": null
+  },
+  {
+    "target_timestamp_utc": "2026-09-08T19:00:00Z",
+    "ap30": 14.2,
+    "lower": 10.5,
+    "upper": 18.9,
     "status": "ok"
   }
 ]
