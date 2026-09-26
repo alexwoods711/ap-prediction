@@ -1,11 +1,6 @@
 {
   "status": "ok",
-<<<<<<< HEAD
-  "last_success_utc": "2026-09-23T05:16:12Z",
-  "last_attempt_utc": "2026-09-23T05:16:12Z",
-=======
   "last_success_utc": "2026-09-23T01:51:12Z",
   "last_attempt_utc": "2026-09-23T01:51:12Z",
->>>>>>> 104527e35ed2de8ba666566e3411da5cee08d2f7
   "last_error": null
 }
