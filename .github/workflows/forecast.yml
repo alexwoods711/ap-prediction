@@ -95,13 +95,3 @@ jobs:
           print(f"- First horizon ({f['horizon_minutes']} min): ap30 = {f['ap30']:.2f}")
           PY
           fi
-
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-      - name: Deploy to Pages
-        id: deploy
-        uses: actions/deploy-pages@v4
